@@ -7,7 +7,7 @@ from PIL import Image
 
 def main():
     # Close the warning 
-    warnings.filterwarnings("ignore")
+    # warnings.filterwarnings("ignore")
 
     inference_insightface()
 
