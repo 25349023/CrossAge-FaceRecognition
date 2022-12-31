@@ -1,4 +1,5 @@
-data/calfw/aligned images/*
+data/calfw/aligned images/
+data/calfw/images&landmarks/
 __pycache__/
 .vs/
 .idea/
