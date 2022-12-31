@@ -1,5 +1,7 @@
-data/
+data/calfw/aligned images/*
 __pycache__/
 .vs/
 .idea/
 
+BaselineScript/test.ipynb
+BaselineScript/test.py

@@ -320,4 +320,4 @@ class Am_softmax(Module):
         output = cos_theta * 1.0
         output[index] = phi[index]  # only change the correct predicted output
         output *= self.s  # scale up in order to make softmax work, first introduced in normface
-        return
+        return output

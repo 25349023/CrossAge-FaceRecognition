@@ -31,8 +31,8 @@ def inference_insightface():
     img3_feat = facerecognition.extract_feat(img3)
 
     # Check
-    score12 = Matrix.get_cosine_similarity(img1_feat, img2_feat)
-    score13 = Matrix.get_cosine_similarity(img1_feat, img3_feat)
+    score12 = Matrix.get_cosine_similarity(img1_feat, img2_feat)[0, 0]
+    score13 = Matrix.get_cosine_similarity(img1_feat, img3_feat)[0, 0]
 
     print(f'similarity score between 1 & 2:{score12}')
     print(f'similarity score between 1 & 3:{score13}')
