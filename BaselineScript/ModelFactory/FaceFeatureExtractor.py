@@ -7,7 +7,12 @@ class insightFace():
     def __init__(self, mode):
         if mode == "mobilefacenet":
             self.model = model_insightface.MobileFaceNet(512).to('cpu')
-            self.model.load_state_dict(torch.load('Model/model_mobilefacenet.pth', map_location=torch.device('cpu')))
+            try:
+                self.model.load_state_dict(torch.load('Model/model_mobilefacenet.pth', map_location=torch.device('cpu')))
+            except:
+                print("error to read model file")
+                print("make sure your execute path of terminal is in 'BaselineScript'")
+                exit()
         else:
             print("Wrong mode name for insighface")
             exit()
