@@ -49,7 +49,8 @@ if __name__ == "__main__":
     model = facerecognition.model.to('cuda')
 
     dataset = CALFWDataset('..\\data\\calfw', 'ForTraining\\CALFW_validationlist.csv',
-                           transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
+                           transform=T.Compose([T.CenterCrop(112), T.ToTensor(),
+                                                T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])]))
 
     auc, r1_acc = evaluate(model, dataset)
     print(f"use pretained model mobilefacenet")
