@@ -54,7 +54,7 @@ if __name__ == '__main__':
         train_transform.append(T.RandomHorizontalFlip(args.flip))
 
     if args.rotate > 0:
-        train_transform.append(T.RandomRotation(args.rotation))
+        train_transform.append(T.RandomRotation(args.rotate))
 
     if args.jitter:
         train_transform.append(T.ColorJitter(*args.jitter_param))
