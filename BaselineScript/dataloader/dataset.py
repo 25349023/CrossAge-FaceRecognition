@@ -40,7 +40,7 @@ class CALFWDataset(Dataset):
 
 
 if __name__ == '__main__':
-    dataset = CALFWDataset('..\\..\\data\\calfw', 'ForTraining\\CALFW_trainlist.csv',
+    dataset = CALFWDataset('../../data/calfw', 'ForTraining/CALFW_trainlist.csv',
                            transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
     print(f'There are {dataset.num_class} different people.')
 
