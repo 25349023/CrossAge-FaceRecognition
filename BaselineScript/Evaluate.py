@@ -1,3 +1,5 @@
+import sys
+
 from Evaluation import Matrix
 import numpy as np
 import tqdm
@@ -8,12 +10,12 @@ def evaluate(model, dataset, dataloader=None):
     # model = model
     model.eval()
 
-    if dataloader == None:
+    if dataloader is None:
         dataloader = DataLoader(dataset, 8, num_workers=2)
 
     with torch.no_grad():
         features = []
-        for i, (pics, labels) in enumerate(tqdm.tqdm(dataloader)):
+        for i, (pics, labels) in enumerate(tqdm.tqdm(dataloader, file=sys.stdout, desc='Evaluating: ', leave=False)):
             pics = pics.to('cuda')
             features.append(model(pics))
         features = torch.cat(features, dim=0).cpu()

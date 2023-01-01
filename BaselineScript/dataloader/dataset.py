@@ -34,10 +34,15 @@ class CALFWDataset(Dataset):
     def __len__(self):
         return len(self.filenames)
 
+    @property
+    def num_class(self):
+        return len(self.name_to_id)
+
 
 if __name__ == '__main__':
     dataset = CALFWDataset('..\\..\\data\\calfw', 'ForTraining\\CALFW_trainlist.csv',
                            transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
+    print(f'There are {dataset.num_class} different people.')
 
     # if running with jupyter notebook, then the `num_workers` and `prefetch_factor` arguments should be removed
     # however it will become quite slow

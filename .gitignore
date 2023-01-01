@@ -5,4 +5,5 @@ __pycache__/
 .idea/
 
 BaselineScript/test.ipynb
+BaselineScript/train.ipynb
 BaselineScript/test.py

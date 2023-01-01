@@ -3,6 +3,7 @@ from ModelFactory import FaceFeatureExtractor
 import numpy as np
 import warnings
 from PIL import Image
+from torchsummary import summary
 
 
 def main():
@@ -19,6 +20,8 @@ def inference_insightface():
     img3_pathstr = 'Test/Abdullah_Ahmad_Badawi_0001.jpg'
     # Load model
     facerecognition = FaceFeatureExtractor.insightFace("mobilefacenet")
+    summary(facerecognition.model, (3, 112, 112))
+    facerecognition.model.cpu()
 
     # image processing 
     img1 = Image.open(img1_pathstr).resize((112, 112))
