@@ -3,6 +3,7 @@ data/calfw/images&landmarks/
 __pycache__/
 .vs/
 .idea/
+ckpt/
 
 BaselineScript/test.ipynb
 BaselineScript/train.ipynb

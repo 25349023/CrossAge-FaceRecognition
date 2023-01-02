@@ -4,15 +4,14 @@ from torchvision import transforms as trans
 
 
 class insightFace():
-    def __init__(self, mode, pretrained=True):
+    def __init__(self, mode, ckpt_path=None):
         if mode == "mobilefacenet":
             self.model = model_insightface.MobileFaceNet(512).to('cpu')
-            if pretrained:
+            if ckpt_path:
                 try:
-                    self.model.load_state_dict(torch.load('Model/model_mobilefacenet.pth', map_location=torch.device('cpu')))
+                    self.model.load_state_dict(torch.load(ckpt_path, map_location=torch.device('cpu')))
                 except:
-                    print("error to read model file")
-                    print("make sure your execute path of terminal is in 'BaselineScript'")
+                    print(f"error to read model file: {ckpt_path}")
                     exit()
         else:
             print("Wrong mode name for insighface")

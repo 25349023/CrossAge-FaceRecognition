@@ -1,5 +1,7 @@
 import argparse
 import datetime
+import os
+import pathlib
 import sys
 from typing import Any, List
 
@@ -70,8 +72,8 @@ if __name__ == '__main__':
         transform=T.Compose([T.CenterCrop(112), T.ToTensor(), normalization]))
     val_dataloader = DataLoader(val_dataset, 32, num_workers=2, prefetch_factor=8)
 
-    model = FaceFeatureExtractor.insightFace("mobilefacenet", pretrained=False).model
-    summary(model, [3, 112, 112])
+    model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=False).model
+    summary(model, [[3, 112, 112]])
     model.train().to('cuda')
 
     head = model_insightface.Arcface(embedding_size=512, classnum=dataset.num_class)
@@ -110,4 +112,5 @@ if __name__ == '__main__':
         print(f"\t| AUC: {auc:.3f}")
         print(f"\t| rank-1 ACC: {r1_acc:.3f}")
 
-    torch.save(model.state_dict(), f'model-{datetime.datetime.now().strftime("%m%d-%H%M%S")}.pth')
+    pathlib.Path('ckpt').mkdir(exist_ok=True)
+    torch.save(model.state_dict(), f'ckpt/model-{datetime.datetime.now().strftime("%m%d-%H%M%S")}.pth')

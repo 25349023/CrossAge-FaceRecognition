@@ -47,10 +47,15 @@ if __name__ == "__main__":
     from torchvision import transforms as T
     from ModelFactory import FaceFeatureExtractor
 
-    facerecognition = FaceFeatureExtractor.insightFace("mobilefacenet")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ckpt', default='Model/model_mobilefacenet.pth')
+    args = parser.parse_args()
+
+    facerecognition = FaceFeatureExtractor.insightFace("mobilefacenet", args.ckpt)
     model = facerecognition.model.to('cuda')
 
-    dataset = CALFWDataset('..\\data\\calfw', 'ForTraining\\CALFW_validationlist.csv',
+    dataset = CALFWDataset('../data/calfw', 'ForTraining/CALFW_validationlist.csv',
                            transform=T.Compose([T.CenterCrop(112), T.ToTensor(),
                                                 T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])]))
 
