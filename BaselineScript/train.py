@@ -73,8 +73,8 @@ if __name__ == '__main__':
     val_dataloader = DataLoader(val_dataset, 32, num_workers=2, prefetch_factor=8)
 
     model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=False).model
-    summary(model, [[3, 112, 112]])
     model.train().to('cuda')
+    summary(model, [[3, 112, 112]])
 
     head = model_insightface.Arcface(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
@@ -113,4 +113,8 @@ if __name__ == '__main__':
         print(f"\t| rank-1 ACC: {r1_acc:.3f}")
 
     pathlib.Path('ckpt').mkdir(exist_ok=True)
-    torch.save(model.state_dict(), f'ckpt/model-{datetime.datetime.now().strftime("%m%d-%H%M%S")}.pth')
+    ckpt_name = f'model-{datetime.datetime.now().strftime("%m%d-%H%M%S")}.pth'
+    torch.save(model.state_dict(), f'ckpt/{ckpt_name}')
+
+    print('\n', f'Settings: {args}')
+    print(f'Save checkpoint to ckpt/{ckpt_name}.')

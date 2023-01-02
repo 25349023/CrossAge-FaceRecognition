@@ -7,7 +7,6 @@ import torch
 
 
 def evaluate(model, dataset, dataloader=None):
-    # model = model
     model.eval()
 
     if dataloader is None:
@@ -60,6 +59,5 @@ if __name__ == "__main__":
                                                 T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])]))
 
     auc, r1_acc = evaluate(model, dataset)
-    print(f"use pretained model mobilefacenet")
     print(f"AUC: {auc:.3f}")
     print(f"rank-1 ACC: {r1_acc:.3f}")
