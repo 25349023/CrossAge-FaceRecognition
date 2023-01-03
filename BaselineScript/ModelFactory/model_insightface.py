@@ -316,8 +316,21 @@ class Am_softmax(Module):
         label = label.view(-1, 1)  # size=(B,1)
         index = cos_theta.data * 0.0  # size=(B,Classnum)
         index.scatter_(1, label.data.view(-1, 1), 1)
-        index = index.byte()
+        index = index.to(torch.bool)
         output = cos_theta * 1.0
         output[index] = phi[index]  # only change the correct predicted output
-        output *= self.s  # scale up in order to make softmax work, first introduced in normface
+        output = phi * self.s  # scale up in order to make softmax work, first introduced in normface
         return output
+
+
+# class CosFace(Module):
+#     def __init__(self, embedding_size=512, class_num=51332, m=0.35, s=30.0):
+#         super().__init__()
+#         self.linear = Linear(embedding_size, class_num, bias=False)
+#         self.m = m
+#         self.s = s
+#
+#     def forward(self, x):
+#         norm_weight = l2_norm(Linear.weight)
+#         cos_theta =
+

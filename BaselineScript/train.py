@@ -41,6 +41,8 @@ def get_parser():
                         help='settings for Color Jittering',
                         metavar=('BRIGHTNESS', 'CONTRAST', 'SATURATION', 'HUE'))
 
+    parser.add_argument('--head', default='Arcface', help='set the head module')
+
     return parser
 
 
@@ -76,7 +78,8 @@ if __name__ == '__main__':
     model.train().to('cuda')
     summary(model, [[3, 112, 112]])
 
-    head = model_insightface.Arcface(embedding_size=512, classnum=dataset.num_class)
+    Head = getattr(model_insightface, args.head)
+    head = Head(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
 
     cross_ent = nn.CrossEntropyLoss()
