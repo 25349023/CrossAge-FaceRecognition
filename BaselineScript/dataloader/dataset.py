@@ -1,5 +1,9 @@
 import csv
 import os.path
+import pprint
+from collections import defaultdict
+from itertools import combinations, chain
+from typing import List, Dict
 
 import tqdm
 from PIL import Image
@@ -39,6 +43,38 @@ class CALFWDataset(Dataset):
         return len(self.name_to_id)
 
 
+class PairCALFWDataset(Dataset):
+    def __init__(self, root, filelist_path, transform=None):
+        self.root = root
+        self.filenames: Dict[str, List[str]] = defaultdict(list)
+        self.transform = transform
+
+        with open(os.path.join(self.root, filelist_path),
+                  'r', encoding='utf-8', newline='') as f:
+            for filename, id_name in csv.reader(f):
+                self.filenames[id_name].append(filename)
+
+        self.pos_pair = list(chain.from_iterable(
+            combinations(group, 2) for group in self.filenames.values())
+        )
+
+    def __getitem__(self, item):
+        fname = self.pos_pair[item]
+        image = tuple(Image.open(os.path.join(self.root, 'aligned images', f))
+                      for f in fname)
+
+        if self.transform is not None:
+            image = tuple(self.transform(img) for img in image)
+        return image
+
+    def __len__(self):
+        return len(self.pos_pair)
+
+    @property
+    def num_class(self):
+        return len(self.filenames)
+
+
 if __name__ == '__main__':
     dataset = CALFWDataset('../../data/calfw', 'ForTraining/CALFW_trainlist.csv',
                            transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
@@ -54,3 +90,16 @@ if __name__ == '__main__':
     print(dataset[0][0].shape)
     plt.imshow(dataset[0][0].permute(1, 2, 0))
     plt.show()
+
+    print()
+
+    dataset = PairCALFWDataset('../../data/calfw', 'ForTraining/CALFW_trainlist.csv',
+                               transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
+    print(f'There are {len(dataset.pos_pair)} positive pairs.')
+    pprint.pprint(dataset.pos_pair[:10])
+    fig, ax = plt.subplots(1, 2)
+    ax[0].imshow(dataset[0][0].permute(1, 2, 0))
+    ax[1].imshow(dataset[0][1].permute(1, 2, 0))
+    plt.show()
+
+
