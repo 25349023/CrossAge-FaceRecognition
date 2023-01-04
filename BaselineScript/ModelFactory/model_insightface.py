@@ -323,7 +323,7 @@ class Am_softmax(Module):
         return output
 
 
-class Sinface(Module):
+class SqCosface(Module):
     def __init__(self, embedding_size=512, classnum=51332):
         super().__init__()
 
@@ -341,5 +341,5 @@ class Sinface(Module):
         # squared_cos = diff1[:, None].bmm(diff2[..., None]).square()
 
         squared_cos = F.cosine_similarity(diff1, diff2).square()
-        squared_sin = squared_cos - 1
-        return squared_sin.mean()
+        # squared_sin = squared_cos - 1
+        return -squared_cos.mean()

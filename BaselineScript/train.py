@@ -87,8 +87,8 @@ if __name__ == '__main__':
     head = Head(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
 
-    sin_sim = model_insightface.Sinface(embedding_size=512, classnum=dataset.num_class)
-    sin_sim.train().to('cuda')
+    sqcos_sim = model_insightface.SqCosface(embedding_size=512, classnum=dataset.num_class)
+    sqcos_sim.train().to('cuda')
 
     cross_ent = nn.CrossEntropyLoss()
     Opt = getattr(torch.optim, args.optimizer)
@@ -120,13 +120,13 @@ if __name__ == '__main__':
             x1, x2 = x1.to('cuda'), x2.to('cuda')
             emb1 = (model(x1), model(x2))
             emb2 = [em.roll(1, dims=0) for em in emb1]
-            sin_loss = sin_sim(emb1, emb2)
+            cos_loss = 0.001 * sqcos_sim(emb1, emb2)
 
             optimizer.zero_grad()
-            sin_loss.backward()
+            cos_loss.backward()
             optimizer.step()
 
-        print(f'Sin similarity = {sin_loss:.6f}')
+        print(f'Squared Cos similarity = {-cos_loss:.6f}')
 
         if args.schedule_lr:
             scheduler.step()
