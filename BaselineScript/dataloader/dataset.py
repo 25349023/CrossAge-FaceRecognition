@@ -44,9 +44,10 @@ class CALFWDataset(Dataset):
 
 
 class PairCALFWDataset(Dataset):
-    def __init__(self, root, filelist_path, transform=None):
+    def __init__(self, root, filelist_path, group=1, transform=None):
         self.root = root
         self.filenames: Dict[str, List[str]] = defaultdict(list)
+        self.group = group
         self.transform = transform
 
         with open(os.path.join(self.root, filelist_path),
@@ -59,16 +60,20 @@ class PairCALFWDataset(Dataset):
         )
 
     def __getitem__(self, item):
-        fname = self.pos_pair[item]
-        image = tuple(Image.open(os.path.join(self.root, 'aligned images', f))
-                      for f in fname)
+        fnames = [self.pos_pair[i] for i in range(item, item + self.group)]
+        image_pairs = [[Image.open(os.path.join(self.root, 'aligned images', f)) for f in pair]
+                       for pair in fnames]
 
         if self.transform is not None:
-            image = tuple(self.transform(img) for img in image)
-        return image
+            image_pairs = [[self.transform(img) for img in pair] for pair in image_pairs]
+
+        if self.group == 1:
+            return image_pairs[0]
+
+        return image_pairs
 
     def __len__(self):
-        return len(self.pos_pair)
+        return len(self.pos_pair) - self.group + 1
 
     @property
     def num_class(self):
@@ -95,11 +100,31 @@ if __name__ == '__main__':
 
     dataset = PairCALFWDataset('../../data/calfw', 'ForTraining/CALFW_trainlist.csv',
                                transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
-    print(f'There are {len(dataset.pos_pair)} positive pairs.')
+    print(f'There are {len(dataset)} positive pairs.')
     pprint.pprint(dataset.pos_pair[:10])
     fig, ax = plt.subplots(1, 2)
     ax[0].imshow(dataset[0][0].permute(1, 2, 0))
     ax[1].imshow(dataset[0][1].permute(1, 2, 0))
     plt.show()
 
+    dataset_g2 = PairCALFWDataset('../../data/calfw', 'ForTraining/CALFW_trainlist.csv',
+                                  group=2, transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
+    print(f'There are {len(dataset_g2)} positive pairs.')
+    fig, ax = plt.subplots(2, 2)
+    p1, p2 = dataset_g2[0]
+    ax[0, 0].imshow(p1[0].permute(1, 2, 0))
+    ax[0, 1].imshow(p1[1].permute(1, 2, 0))
+    ax[1, 0].imshow(p2[0].permute(1, 2, 0))
+    ax[1, 1].imshow(p2[1].permute(1, 2, 0))
+    plt.show()
 
+    dataloader_g2 = DataLoader(dataset_g2, 4)
+    p1s, p2s = next(iter(dataloader_g2))
+
+    for y1, o1, y2, o2 in zip(*p1s, *p2s):
+        fig, ax = plt.subplots(2, 2)
+        ax[0, 0].imshow(y1.permute(1, 2, 0))
+        ax[0, 1].imshow(o1.permute(1, 2, 0))
+        ax[1, 0].imshow(y2.permute(1, 2, 0))
+        ax[1, 1].imshow(o2.permute(1, 2, 0))
+        plt.show()
