@@ -8,6 +8,7 @@ from typing import Any, List
 import torch.optim
 import tqdm
 from torch import nn
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchsummary import summary
 from torchvision import transforms as T
@@ -87,8 +88,8 @@ if __name__ == '__main__':
     head = Head(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
 
-    sqcos_sim = model_insightface.SqCosface(embedding_size=512, classnum=dataset.num_class)
-    sqcos_sim.train().to('cuda')
+    similarity = model_insightface.SinCosCrossSim(embedding_size=512, classnum=dataset.num_class)
+    similarity.train().to('cuda')
 
     cross_ent = nn.CrossEntropyLoss()
     Opt = getattr(torch.optim, args.optimizer)
@@ -114,19 +115,18 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-        print(f'Epoch {epoch}: Loss = {loss:.6f}', end=', ')
-
         for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training: ', leave=False):
             x1, x2 = x1.to('cuda'), x2.to('cuda')
             emb1 = (model(x1), model(x2))
-            emb2 = [em.roll(1, dims=0) for em in emb1]
-            cos_loss = 0.001 * sqcos_sim(emb1, emb2)
+            # emb2 = [em.roll(1, dims=0) for em in emb1]
+            # cos_loss = similarity(emb1, emb2)
+            cos_loss = -F.cosine_similarity(*emb1).mean()
 
             optimizer.zero_grad()
             cos_loss.backward()
             optimizer.step()
 
-        print(f'Squared Cos similarity = {-cos_loss:.6f}')
+        print(f'Epoch {epoch}: Loss = {loss:.6f}, Squared Cos similarity = {-cos_loss:.6f}')
 
         if args.schedule_lr:
             scheduler.step()

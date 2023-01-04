@@ -323,7 +323,7 @@ class Am_softmax(Module):
         return output
 
 
-class SqCosface(Module):
+class SinCosCrossSim(Module):
     def __init__(self, embedding_size=512, classnum=51332):
         super().__init__()
 
