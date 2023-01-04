@@ -14,7 +14,7 @@ from torchvision import transforms as T
 
 from Evaluate import evaluate
 from ModelFactory import FaceFeatureExtractor, model_insightface
-from dataloader.dataset import CALFWDataset
+from dataloader.dataset import CALFWDataset, PairCALFWDataset
 
 
 def get_parser():
@@ -69,6 +69,11 @@ if __name__ == '__main__':
         transform=T.Compose(train_transform + [T.ToTensor(), normalization]))
     dataloader = DataLoader(dataset, 64, shuffle=True, num_workers=2, prefetch_factor=8)
 
+    pair_dataset = PairCALFWDataset(
+        '../data/calfw', 'ForTraining/CALFW_trainlist.csv',
+        transform=T.Compose(train_transform + [T.ToTensor(), normalization]))
+    pair_dataloader = DataLoader(pair_dataset, 64, shuffle=True, num_workers=2, prefetch_factor=8)
+
     val_dataset = CALFWDataset(
         '../data/calfw', 'ForTraining/CALFW_validationlist.csv',
         transform=T.Compose([T.CenterCrop(112), T.ToTensor(), normalization]))
@@ -81,6 +86,9 @@ if __name__ == '__main__':
     Head = getattr(model_insightface, args.head)
     head = Head(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
+
+    sin_sim = model_insightface.Sinface(embedding_size=512, classnum=dataset.num_class)
+    sin_sim.train().to('cuda')
 
     cross_ent = nn.CrossEntropyLoss()
     Opt = getattr(torch.optim, args.optimizer)
@@ -106,7 +114,21 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-        print(f'Epoch {epoch}: Loss = {loss:.6f}')
+        print(f'Epoch {epoch}: Loss = {loss:.6f}', end=', ')
+
+        for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training: ', leave=False):
+            x1, x2 = x1.to('cuda'), x2.to('cuda')
+            rx1, rx2 = x1.roll(1, dims=0), x2.roll(1, dims=0)
+            emb1 = (model(x1), model(x2))
+            emb2 = (model(rx1), model(rx2))
+            sin_loss = sin_sim(emb1, emb2)
+
+            optimizer.zero_grad()
+            sin_loss.backward()
+            optimizer.step()
+
+        print(f'Sin similarity = {sin_loss:.6f}')
+
         if args.schedule_lr:
             scheduler.step()
 

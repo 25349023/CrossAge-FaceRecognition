@@ -323,14 +323,23 @@ class Am_softmax(Module):
         return output
 
 
-# class CosFace(Module):
-#     def __init__(self, embedding_size=512, class_num=51332, m=0.35, s=30.0):
-#         super().__init__()
-#         self.linear = Linear(embedding_size, class_num, bias=False)
-#         self.m = m
-#         self.s = s
-#
-#     def forward(self, x):
-#         norm_weight = l2_norm(Linear.weight)
-#         cos_theta =
+class Sinface(Module):
+    def __init__(self, embedding_size=512, classnum=51332):
+        super().__init__()
 
+    def forward(self, feat_pair1, feat_pair2):
+        """
+        :param feat_pair1: tuple of paired feature tensor
+        :param feat_pair2: tuple of another paired feature tensor
+        :return: squared-sine directional-similarity
+        """
+
+        diff1 = feat_pair1[0] - feat_pair1[1]
+        diff2 = feat_pair2[0] - feat_pair2[1]
+        # diff1 /= torch.norm(diff1, dim=-1, keepdim=True) + 1e-8
+        # diff2 /= torch.norm(diff2, dim=-1, keepdim=True) + 1e-8
+        # squared_cos = diff1[:, None].bmm(diff2[..., None]).square()
+
+        squared_cos = F.cosine_similarity(diff1, diff2).square()
+        squared_sin = squared_cos - 1
+        return squared_sin.mean()
