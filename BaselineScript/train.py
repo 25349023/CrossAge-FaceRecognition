@@ -117,16 +117,20 @@ if __name__ == '__main__':
 
         for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training: ', leave=False):
             x1, x2 = x1.to('cuda'), x2.to('cuda')
-            emb1 = (model(x1), model(x2))
+            emb_pos = (model(x1), model(x2))
+            emb_neg = (emb_pos[0], emb_pos[1].roll(1, dims=0))
             # emb2 = [em.roll(1, dims=0) for em in emb1]
             # cos_loss = similarity(emb1, emb2)
-            cos_loss = -F.cosine_similarity(*emb1).mean()
+            pos_cos_loss = -F.cosine_similarity(*emb_pos).mean()
+            neg_cos_loss = F.cosine_similarity(*emb_neg).mean()
+            cos_loss = 0.5 * pos_cos_loss + 0.5 * neg_cos_loss
 
             optimizer.zero_grad()
             cos_loss.backward()
             optimizer.step()
 
-        print(f'Epoch {epoch}: Loss = {loss:.6f}, Squared Cos similarity = {-cos_loss:.6f}')
+        print(f'Epoch {epoch}: Loss = {loss:.6f}, '
+              f'Cos similarity (P) = {-pos_cos_loss:.2f}, (N) = {neg_cos_loss:.2f}')
 
         if args.schedule_lr:
             scheduler.step()
