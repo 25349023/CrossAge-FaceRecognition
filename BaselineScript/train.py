@@ -118,9 +118,8 @@ if __name__ == '__main__':
 
         for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training: ', leave=False):
             x1, x2 = x1.to('cuda'), x2.to('cuda')
-            rx1, rx2 = x1.roll(1, dims=0), x2.roll(1, dims=0)
             emb1 = (model(x1), model(x2))
-            emb2 = (model(rx1), model(rx2))
+            emb2 = [em.roll(1, dims=0) for em in emb1]
             sin_loss = sin_sim(emb1, emb2)
 
             optimizer.zero_grad()
