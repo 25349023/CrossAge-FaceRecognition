@@ -56,7 +56,7 @@ if __name__ == '__main__':
     args = get_parser().parse_args()
     print(args, '\n')
 
-    train_transform: List[Any] = [T.CenterCrop(args.crop[0]), T.RandomCrop(args.crop[1])]
+    train_transform: List[Any] = [T.Resize(args.crop[0]), T.RandomCrop(args.crop[1])]
     if args.resize > 0:
         train_transform.append(T.Resize(args.resize))
 
@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     val_dataset = CALFWDataset(
         '../data/calfw', 'ForTraining/CALFW_validationlist.csv',
-        transform=T.Compose([T.CenterCrop(112), T.ToTensor(), normalization]))
+        transform=T.Compose([T.Resize(112), T.ToTensor(), normalization]))
     val_dataloader = DataLoader(val_dataset, 32, num_workers=2, prefetch_factor=8)
 
     model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=False).model

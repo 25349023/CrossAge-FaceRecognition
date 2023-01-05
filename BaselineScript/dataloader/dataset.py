@@ -82,7 +82,7 @@ class PairCALFWDataset(Dataset):
 
 if __name__ == '__main__':
     dataset = CALFWDataset('../../data/calfw', 'ForTraining/CALFW_trainlist.csv',
-                           transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
+                           transform=T.Compose([T.Resize(112), T.ToTensor()]))
     print(f'There are {dataset.num_class} different people.')
 
     # if running with jupyter notebook, then the `num_workers` and `prefetch_factor` arguments should be removed
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     print()
 
     dataset = PairCALFWDataset('../../data/calfw', 'ForTraining/CALFW_trainlist.csv',
-                               transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
+                               transform=T.Compose([T.Resize(112), T.ToTensor()]))
     print(f'There are {len(dataset)} positive pairs.')
     pprint.pprint(dataset.pos_pair[:10])
     fig, ax = plt.subplots(1, 2)
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     plt.show()
 
     dataset_g2 = PairCALFWDataset('../../data/calfw', 'ForTraining/CALFW_trainlist.csv',
-                                  group=2, transform=T.Compose([T.CenterCrop(112), T.ToTensor()]))
+                                  group=2, transform=T.Compose([T.Resize(112), T.ToTensor()]))
     print(f'There are {len(dataset_g2)} positive pairs.')
     fig, ax = plt.subplots(2, 2)
     p1, p2 = dataset_g2[0]

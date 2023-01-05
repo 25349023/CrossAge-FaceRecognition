@@ -1,5 +1,7 @@
 data/calfw/aligned images/
 data/calfw/images&landmarks/
+raw images/
+oldimages/
 __pycache__/
 .vs/
 .idea/
