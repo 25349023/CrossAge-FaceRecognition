@@ -44,6 +44,11 @@ def get_parser():
 
     parser.add_argument('--head', default='Arcface', help='set the head module')
 
+    parser.add_argument('--similarity', action='store_true',
+                        help='enable optimization on cos similarity for pair of feat')
+    parser.add_argument('--pos-factor', type=float, default=0.5,
+                        help='factor of pos pair similarity loss, value in [0.0, 1.0]')
+
     return parser
 
 
@@ -88,8 +93,6 @@ if __name__ == '__main__':
     head = Head(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
 
-    similarity = model_insightface.SinCosCrossSim(embedding_size=512, classnum=dataset.num_class)
-    similarity.train().to('cuda')
 
     cross_ent = nn.CrossEntropyLoss()
     Opt = getattr(torch.optim, args.optimizer)
@@ -115,22 +118,25 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-        for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training: ', leave=False):
-            x1, x2 = x1.to('cuda'), x2.to('cuda')
-            emb_pos = (model(x1), model(x2))
-            emb_neg = (emb_pos[0], emb_pos[1].roll(1, dims=0))
-            # emb2 = [em.roll(1, dims=0) for em in emb1]
-            # cos_loss = similarity(emb1, emb2)
-            pos_cos_loss = -F.cosine_similarity(*emb_pos).mean()
-            neg_cos_loss = F.cosine_similarity(*emb_neg).mean()
-            cos_loss = 0.5 * pos_cos_loss + 0.5 * neg_cos_loss
+        if args.similarity:
+            for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Sim): ', leave=False):
+                x1, x2 = x1.to('cuda'), x2.to('cuda')
+                emb_pos = (model(x1), model(x2))
+                emb_neg = (emb_pos[0], emb_pos[1].roll(1, dims=0))
+                # emb2 = [em.roll(1, dims=0) for em in emb1]
+                # cos_loss = similarity(emb1, emb2)
+                pos_cos_loss = -F.cosine_similarity(*emb_pos).mean()
+                neg_cos_loss = F.cosine_similarity(*emb_neg).mean()
+                p = args.pos_factor
+                cos_loss = p * pos_cos_loss + (1 - p) * neg_cos_loss
 
-            optimizer.zero_grad()
-            cos_loss.backward()
-            optimizer.step()
+                optimizer.zero_grad()
+                cos_loss.backward()
+                optimizer.step()
 
-        print(f'Epoch {epoch}: Loss = {loss:.6f}, '
-              f'Cos similarity (P) = {-pos_cos_loss:.2f}, (N) = {neg_cos_loss:.2f}')
+        print(f'Epoch {epoch}: Loss = {loss:.6f}')
+        if args.similarity:
+            print(f'\t| Cos similarity (P) = {-pos_cos_loss:.2f}, (N) = {neg_cos_loss:.2f}')
 
         if args.schedule_lr:
             scheduler.step()
