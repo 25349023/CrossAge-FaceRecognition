@@ -1,11 +1,17 @@
 import numpy as np
-
+import torch
 
 def get_cosine_similarity(feat1, feat2):
-    feat1 = feat1 / np.linalg.norm(feat1)
-    feat2 = feat2 / np.linalg.norm(feat2)
-    result = np.dot(feat1, feat2.T)
+    # feat1 = feat1 / np.linalg.norm(feat1)
+    # feat2 = feat2 / np.linalg.norm(feat2)
+    # result = np.dot(feat1, feat2.T)
 
+    feat1 = feat1 / torch.linalg.norm(feat1)
+    feat2 = feat2 / torch.linalg.norm(feat2)
+    # print(feat1.shape)
+    # print(feat2.T.shape)
+    result = torch.matmul(feat1, feat2.T)
+    # result = torch.nn.CosineSimilarity()(feat1, feat2)
     return result
 
 
@@ -15,9 +21,13 @@ def get_cosine_similarity(feat1, feat2):
 
 
 def get_dis_score(feat1, feat2):
-    feat1 = feat1 / np.linalg.norm(feat1)
-    feat2 = feat2 / np.linalg.norm(feat2)
-    feat_dist = np.linalg.norm(feat1 - feat2)
+    # feat1 = feat1 / np.linalg.norm(feat1)
+    # feat2 = feat2 / np.linalg.norm(feat2)
+    # feat_dist = np.linalg.norm(feat1 - feat2)
+
+    feat1 = feat1 / torch.linalg.norm(feat1)
+    feat2 = feat2 / torch.linalg.norm(feat2)
+    feat_dist = torch.linalg.norm(feat1 - feat2)
     return -feat_dist
 
 
@@ -54,8 +64,8 @@ def get_rank_one(pred_similarity, ground_truth, num_faces):
     '''
 
     # Rebuild nxn similarity and ground_truth matrix
-    sim_map = np.zeros((num_faces, num_faces))
-    gt_map = np.zeros((num_faces, num_faces))
+    sim_map = torch.zeros((num_faces, num_faces))
+    gt_map = torch.zeros((num_faces, num_faces))
     used_pairs = 0
     for i in range(num_faces - 1):
         cur_num_pairs = num_faces - i - 1
@@ -71,7 +81,7 @@ def get_rank_one(pred_similarity, ground_truth, num_faces):
 
     total_success = 0
     for i in range(num_faces):
-        j = np.argmax(sim_map[i]) # most similar to face i
+        j = torch.argmax(sim_map[i]) # most similar to face i
 
         success = gt_map[i][j]
         total_success += success

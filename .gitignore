@@ -1,4 +1,6 @@
 data/calfw/aligned images/
+data/calfw/aligned images_old/
+data/calfw/ForTraining_old/
 data/calfw/images&landmarks/
 __pycache__/
 .vs/

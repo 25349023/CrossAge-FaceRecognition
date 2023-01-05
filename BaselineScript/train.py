@@ -19,25 +19,25 @@ from dataloader.dataset import CALFWDataset
 
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--epochs', type=int, default=40)
-    parser.add_argument('--lr', type=float, default=3e-3)
+    parser.add_argument('--epochs', type=int, default=60)
+    parser.add_argument('--lr', type=float, default=2e-3)
     parser.add_argument('--optimizer', default='Adam')
-    parser.add_argument('--schedule-lr', action='store_true', help='enable the lr scheduling')
-    parser.add_argument('--schedule-epoch', type=int, default=6, help='decay the lr every N epochs')
+    parser.add_argument('--schedule-lr', action='store_false', help='enable the lr scheduling')
+    parser.add_argument('--schedule-epoch', type=int, default=30, help='decay the lr every N epochs')
     parser.add_argument('--schedule-step', type=float, default=0.3, help='decay the lr by the given factor',
                         metavar='DECAY_FACTOR')
 
-    parser.add_argument('--crop', type=int, nargs=2, default=[112, 112],
+    parser.add_argument('--crop', type=int, nargs=2, default=[231, 231],
                         help='two ints, the first is for CenterCrop, and the second is for Random Crop')
-    parser.add_argument('--resize', type=int, default=0,
+    parser.add_argument('--resize', type=int, default=112,
                         help='resize after cropping, 0 means no additional resize')
-    parser.add_argument('--flip', type=float, default=0,
+    parser.add_argument('--flip', type=float, default=.5,
                         help='if greater than 0, enable the random horizontal flipping')
     parser.add_argument('--rotate', type=float, default=0,
                         help='if greater than 0, enable the random rotation', metavar='DEG')
 
-    parser.add_argument('--jitter', action='store_true', help='enable the color jittering')
-    parser.add_argument('--jitter-param', type=float, default=[0.125, 0.125, 0.125, 0], nargs=4,
+    parser.add_argument('--jitter', action='store_false', help='enable the color jittering')
+    parser.add_argument('--jitter-param', type=float, default=[0.125, 0.125, 0.4, 0], nargs=4,
                         help='settings for Color Jittering',
                         metavar=('BRIGHTNESS', 'CONTRAST', 'SATURATION', 'HUE'))
 
@@ -64,19 +64,21 @@ if __name__ == '__main__':
     normalization = T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     dataset = CALFWDataset(
         '../data/calfw', 'ForTraining/CALFW_trainlist.csv',
-        transform=T.Compose(train_transform + [T.ToTensor(), normalization]))
+        transform=T.Compose(train_transform + [T.ToTensor(), normalization]), use_group=False)
     dataloader = DataLoader(dataset, 64, shuffle=True, num_workers=2, prefetch_factor=8)
 
     val_dataset = CALFWDataset(
         '../data/calfw', 'ForTraining/CALFW_validationlist.csv',
-        transform=T.Compose([T.CenterCrop(112), T.ToTensor(), normalization]))
+        transform=T.Compose([T.Resize(112), T.ToTensor(), normalization]))
     val_dataloader = DataLoader(val_dataset, 32, num_workers=2, prefetch_factor=8)
 
-    model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=False).model
+    # model = model_insightface.GroupMobileFaceNet(512)
+    model = model_insightface.MobileFaceNet(512)
     model.train().to('cuda')
     summary(model, [[3, 112, 112]])
 
-    head = model_insightface.Arcface(embedding_size=512, classnum=dataset.num_class)
+    # head = model_insightface.Arcface(embedding_size=512, classnum=dataset.num_class)
+    head = model_insightface.Am_softmax(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
 
     cross_ent = nn.CrossEntropyLoss()
@@ -89,21 +91,31 @@ if __name__ == '__main__':
     if args.schedule_lr:
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.schedule_epoch, args.schedule_step)
 
+    best_R1 = None
+    best_AUC = None
+    best_loss = None
+    wait_time = 0
     for epoch in range(args.epochs):
         print()
 
         model.train()
-        for x, y in tqdm.tqdm(dataloader, file=sys.stdout, desc='Training: ', leave=False):
-            x, y = x.to('cuda'), y.to('cuda')
+        running_loss = 0
+        for x, y1 in tqdm.tqdm(dataloader, file=sys.stdout, desc='Training: ', leave=False):
+            x, y1 = x.to('cuda'), y1.to('cuda')
+            # emb, age = model(x)
             emb = model(x)
-            theta = head(emb, y)
-            loss = cross_ent(theta, y)
+            theta = head(emb, y1)
+            loss1 = cross_ent(theta, y1)
+            # loss2 = cross_ent(age, y2)
+            loss = loss1 # + .1*loss2
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-        print(f'Epoch {epoch}: Loss = {loss:.6f}')
+            running_loss += loss.detach() * (x.shape[0] / len(dataset))
+
+        print(f'Epoch {epoch}: Loss = {running_loss:.6f}')
         if args.schedule_lr:
             scheduler.step()
 
@@ -112,9 +124,25 @@ if __name__ == '__main__':
         print(f"\t| AUC: {auc:.3f}")
         print(f"\t| rank-1 ACC: {r1_acc:.3f}")
 
+        if best_R1 is None or r1_acc > best_R1:
+            wait_time = 0
+            best_R1 = r1_acc
+            best_AUC = auc
+            best_loss = loss
+            pathlib.Path('ckpt').mkdir(exist_ok=True)
+            ckpt_name = f'model-best.pth'
+            torch.save(model.state_dict(), f'ckpt/{ckpt_name}')
+        else:
+            wait_time += 1
+
+        if wait_time > 20:
+            print("== early stop ==")
+            break
+
     pathlib.Path('ckpt').mkdir(exist_ok=True)
     ckpt_name = f'model-{datetime.datetime.now().strftime("%m%d-%H%M%S")}.pth'
     torch.save(model.state_dict(), f'ckpt/{ckpt_name}')
 
     print('\n', f'Settings: {args}')
     print(f'Save checkpoint to ckpt/{ckpt_name}.')
+    print(f'best AUC {best_AUC:.3f}, best R1 {best_R1:.3f}, best loss {best_loss:.6f}')

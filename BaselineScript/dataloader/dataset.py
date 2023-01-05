@@ -9,19 +9,29 @@ from torchvision import transforms as T
 
 
 class CALFWDataset(Dataset):
-    def __init__(self, root, filelist_path, transform=None):
+    def __init__(self, root, filelist_path, transform=None, use_group=False):
         self.root = root
         self.filenames = []
         self.identities = []
         self.name_to_id = {}
         self.transform = transform
+        self.use_group = use_group
+        if self.use_group:
+            self.groups = []
 
         with open(os.path.join(self.root, filelist_path),
                   'r', encoding='utf-8', newline='') as f:
-            for filename, id_name in csv.reader(f):
-                id = self.name_to_id.setdefault(id_name, len(self.name_to_id))
-                self.filenames.append(filename)
-                self.identities.append(id)
+            if not self.use_group:
+                for filename, id_name in csv.reader(f):
+                    id = self.name_to_id.setdefault(id_name, len(self.name_to_id))
+                    self.filenames.append(filename)
+                    self.identities.append(id)
+            else:
+                for filename, id_name, _, _, group in csv.reader(f):
+                    id = self.name_to_id.setdefault(id_name, len(self.name_to_id))
+                    self.filenames.append(filename)
+                    self.identities.append(id)
+                    self.groups.append(int(group))
 
     def __getitem__(self, item):
         image = Image.open(os.path.join(self.root, 'aligned images', self.filenames[item]))
@@ -29,6 +39,11 @@ class CALFWDataset(Dataset):
 
         if self.transform is not None:
             image = self.transform(image)
+        
+        if self.use_group:
+            group = self.groups[item]
+            return image, label, group
+        
         return image, label
 
     def __len__(self):
