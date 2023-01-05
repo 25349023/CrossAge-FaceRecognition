@@ -323,6 +323,24 @@ class Am_softmax(Module):
         return output
 
 
+class ContrastiveLoss(Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, feat1, feat2):
+        def cos_sim(f1, f2):
+            z1 = F.normalize(f1, dim=-1, p=2)
+            z2 = F.normalize(f2, dim=-1, p=2)
+            return torch.mm(z1, z2.t())
+
+        inter_sim = torch.exp(cos_sim(feat1, feat2))
+        # intra_sim = torch.exp(cos_sim(h1, h1))
+
+        l_inter = -torch.log(inter_sim.diag() / inter_sim.sum(dim=-1)).mean()
+        # l_intra = -torch.log(inter_sim.diag() /
+        #                      (inter_sim.sum(dim=-1) + intra_sim.sum(dim=-1) - intra_sim.diag()))
+        return l_inter
+
 # class SinCosCrossSim(Module):
 #     def __init__(self, embedding_size=512, classnum=51332):
 #         super().__init__()

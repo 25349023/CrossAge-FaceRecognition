@@ -20,9 +20,9 @@ from dataloader.dataset import CALFWDataset, PairCALFWDataset
 
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--epochs', type=int, default=40)
-    parser.add_argument('--lr', type=float, default=3e-3)
-    parser.add_argument('--optimizer', default='Adam')
+    parser.add_argument('--epochs', type=int, default=40, help=' ')
+    parser.add_argument('--lr', type=float, default=3e-3, help=' ')
+    parser.add_argument('--optimizer', default='Adam', help=' ')
     parser.add_argument('--schedule-lr', action='store_true', help='enable the lr scheduling')
     parser.add_argument('--schedule-epoch', type=int, default=6, help='decay the lr every N epochs')
     parser.add_argument('--schedule-step', type=float, default=0.3, help='decay the lr by the given factor',
@@ -44,10 +44,10 @@ def get_parser():
 
     parser.add_argument('--head', default='Arcface', help='set the head module')
 
-    parser.add_argument('--similarity', action='store_true',
-                        help='enable optimization on cos similarity for pair of feat')
-    parser.add_argument('--pos-factor', type=float, default=0.5,
-                        help='factor of pos pair similarity loss, value in [0.0, 1.0]')
+    parser.add_argument('--contrastive', action='store_true',
+                        help='enable supervised contrastive loss')
+    parser.add_argument('--cont-factor', type=float, default=1.0,
+                        help='factor of contrastive loss')
 
     return parser
 
@@ -93,8 +93,8 @@ if __name__ == '__main__':
     head = Head(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
 
-
     cross_ent = nn.CrossEntropyLoss()
+    contrastive_loss = model_insightface.ContrastiveLoss()
     Opt = getattr(torch.optim, args.optimizer)
     optimizer = Opt([
         {'params': model.parameters()},
@@ -118,25 +118,19 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-        if args.similarity:
-            for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Sim): ', leave=False):
+        if args.contrastive:
+            for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Cont): ', leave=False):
                 x1, x2 = x1.to('cuda'), x2.to('cuda')
-                emb_pos = (model(x1), model(x2))
-                emb_neg = (emb_pos[0], emb_pos[1].roll(1, dims=0))
-                # emb2 = [em.roll(1, dims=0) for em in emb1]
-                # cos_loss = similarity(emb1, emb2)
-                pos_cos_loss = -F.cosine_similarity(*emb_pos).mean()
-                neg_cos_loss = F.cosine_similarity(*emb_neg).mean()
-                p = args.pos_factor
-                cos_loss = p * pos_cos_loss + (1 - p) * neg_cos_loss
+                emb = (model(x1), model(x2))
+                ct_loss = args.cont_factor * contrastive_loss(*emb)
 
                 optimizer.zero_grad()
-                cos_loss.backward()
+                ct_loss.backward()
                 optimizer.step()
 
         print(f'Epoch {epoch}: Loss = {loss:.6f}')
-        if args.similarity:
-            print(f'\t| Cos similarity (P) = {-pos_cos_loss:.2f}, (N) = {neg_cos_loss:.2f}')
+        if args.contrastive:
+            print(f'\t| contrastive loss = {ct_loss:.2f}')
 
         if args.schedule_lr:
             scheduler.step()
