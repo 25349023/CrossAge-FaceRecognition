@@ -105,9 +105,10 @@ if __name__ == '__main__':
     if args.schedule_lr:
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.schedule_epoch, args.schedule_step)
 
-    best_acc, best_ckpt_name = 0, f'model-best-{start_time}.pth'
     pathlib.Path('ckpt').mkdir(exist_ok=True)
     start_time = datetime.datetime.now().strftime("%m%d-%H%M%S")
+    best_acc, best_ckpt_name = 0, f'model-best-{start_time}.pth'
+
     for epoch in range(args.epochs):
         print()
 
