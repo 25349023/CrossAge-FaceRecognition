@@ -334,12 +334,12 @@ class ContrastiveLoss(Module):
             return torch.mm(z1, z2.t())
 
         inter_sim = torch.exp(cos_sim(feat1, feat2))
-        # intra_sim = torch.exp(cos_sim(h1, h1))
+        intra_sim = torch.exp(cos_sim(feat1, feat2))
 
-        l_inter = -torch.log(inter_sim.diag() / inter_sim.sum(dim=-1)).mean()
-        # l_intra = -torch.log(inter_sim.diag() /
-        #                      (inter_sim.sum(dim=-1) + intra_sim.sum(dim=-1) - intra_sim.diag()))
-        return l_inter
+        l_inter = -torch.log(inter_sim.diag() / inter_sim.sum(dim=-1))
+        l_intra = -torch.log(inter_sim.diag() /
+                             (inter_sim.sum(dim=-1) + intra_sim.sum(dim=-1) - intra_sim.diag()))
+        return l_inter.mean(), l_intra.mean()
 
 # class SinCosCrossSim(Module):
 #     def __init__(self, embedding_size=512, classnum=51332):

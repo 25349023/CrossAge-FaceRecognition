@@ -48,6 +48,7 @@ def get_parser():
                         help='enable supervised contrastive loss')
     parser.add_argument('--cont-factor', type=float, default=1.0,
                         help='factor of contrastive loss')
+    parser.add_argument('--cont-intra', action='store_true', help='enable intra contrastive loss')
 
     return parser
 
@@ -104,6 +105,9 @@ if __name__ == '__main__':
     if args.schedule_lr:
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.schedule_epoch, args.schedule_step)
 
+    best_acc, best_ckpt_name = 0, ''
+    pathlib.Path('ckpt').mkdir(exist_ok=True)
+
     for epoch in range(args.epochs):
         print()
 
@@ -122,7 +126,11 @@ if __name__ == '__main__':
             for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Cont): ', leave=False):
                 x1, x2 = x1.to('cuda'), x2.to('cuda')
                 emb = (model(x1), model(x2))
-                ct_loss = args.cont_factor * contrastive_loss(*emb)
+                inter_loss, intra_loss = contrastive_loss(*emb)
+                ct_loss = inter_loss
+                if args.cont_intra:
+                    ct_loss += intra_loss
+                ct_loss *= args.cont_factor
 
                 optimizer.zero_grad()
                 ct_loss.backward()
@@ -130,19 +138,24 @@ if __name__ == '__main__':
 
         print(f'Epoch {epoch}: Loss = {loss:.6f}')
         if args.contrastive:
-            print(f'\t| contrastive loss = {ct_loss:.2f}')
+            print(f'\t| Contrastive loss = {ct_loss:.2f}')
 
         if args.schedule_lr:
             scheduler.step()
 
         model.eval()
         auc, r1_acc = evaluate(model, val_dataset, val_dataloader)
+        if r1_acc > best_acc:
+            best_acc = r1_acc
+            best_ckpt_name = f'model-best-{datetime.datetime.now().strftime("%m%d-%H")}.pth'
+            torch.save(model.state_dict(), f'ckpt/{best_ckpt_name}')
+
         print(f"\t| AUC: {auc:.3f}")
         print(f"\t| rank-1 ACC: {r1_acc:.3f}")
 
-    pathlib.Path('ckpt').mkdir(exist_ok=True)
     ckpt_name = f'model-{datetime.datetime.now().strftime("%m%d-%H%M%S")}.pth'
     torch.save(model.state_dict(), f'ckpt/{ckpt_name}')
 
     print('\n', f'Settings: {args}')
     print(f'Save checkpoint to ckpt/{ckpt_name}.')
+    print(f'Save best checkpoint to ckpt/{best_ckpt_name}.')
