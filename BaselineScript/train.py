@@ -51,12 +51,16 @@ def get_parser():
     parser.add_argument('--cont-intra', action='store_true', help='enable intra contrastive loss')
 
     parser.add_argument('--freeze-head', type=int, default=0, help='freeze the head after N epochs')
+    parser.add_argument('--refresh-head', type=int, default=0, help='re-initialize the head after N epochs')
 
     return parser
 
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
+    if all([args.freeze_head, args.refresh_head]):
+        raise ValueError('cannot specify freeze-head and refresh-head at the same time')
+
     print(args, '\n')
 
     train_transform: List[Any] = [T.Resize(args.crop[0]), T.RandomCrop(args.crop[1])]
@@ -117,6 +121,10 @@ if __name__ == '__main__':
         if 0 < args.freeze_head == epoch:
             print(' freeze the head '.center(30, '='))
             head.kernel.requires_grad_(False)
+
+        if 0 < args.refresh_head == epoch:
+            print(' refresh the head '.center(30, '='))
+            head.init_kernel()
 
         model.train()
         for x, y in tqdm.tqdm(dataloader, file=sys.stdout, desc='Training: ', leave=False):

@@ -269,6 +269,9 @@ class Arcface(Module):
         self.mm = self.sin_m * m  # issue 1
         self.threshold = math.cos(math.pi - m)
 
+    def init_kernel(self):
+        self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
+
     def forward(self, embbedings, label):
         # weights norm
         nB = len(embbedings)
@@ -307,6 +310,9 @@ class Am_softmax(Module):
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
         self.m = 0.35  # additive margin recommended by the paper
         self.s = 30.  # see normface https://arxiv.org/abs/1704.06369
+
+    def init_kernel(self):
+        self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
 
     def forward(self, embbedings, label):
         kernel_norm = l2_norm(self.kernel, axis=0)
