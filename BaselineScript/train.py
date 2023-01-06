@@ -53,6 +53,8 @@ def get_parser():
     parser.add_argument('--freeze-head', type=int, default=0, help='freeze the head after N epochs')
     parser.add_argument('--refresh-head', type=int, default=0, help='re-initialize the head after N epochs')
 
+    parser.add_argument('--ckpt', default='', help='continue training')
+
     return parser
 
 
@@ -92,9 +94,12 @@ if __name__ == '__main__':
         transform=T.Compose([T.Resize(112), T.ToTensor(), normalization]))
     val_dataloader = DataLoader(val_dataset, 32, num_workers=2, prefetch_factor=8)
 
-    model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=False).model
+    model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=args.ckpt).model
     model.train().to('cuda')
     summary(model, [[3, 112, 112]])
+
+    if args.ckpt:
+        print(f' Continue training from {args.ckpt} '.center(80, '#'))
 
     Head = getattr(model_insightface, args.head)
     head = Head(embedding_size=512, classnum=dataset.num_class)
