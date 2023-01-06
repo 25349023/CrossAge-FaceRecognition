@@ -50,6 +50,8 @@ def get_parser():
                         help='factor of contrastive loss')
     parser.add_argument('--cont-intra', action='store_true', help='enable intra contrastive loss')
 
+    parser.add_argument('--freeze-head', type=int, default=0, help='freeze the head after N epochs')
+
     return parser
 
 
@@ -111,6 +113,10 @@ if __name__ == '__main__':
 
     for epoch in range(args.epochs):
         print()
+
+        if 0 < args.freeze_head == epoch:
+            print(' freeze the head '.center(30, '='))
+            head.kernel.requires_grad_(False)
 
         model.train()
         for x, y in tqdm.tqdm(dataloader, file=sys.stdout, desc='Training: ', leave=False):
