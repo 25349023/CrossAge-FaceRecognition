@@ -98,16 +98,16 @@ if __name__ == '__main__':
     contrastive_loss = model_insightface.ContrastiveLoss()
     Opt = getattr(torch.optim, args.optimizer)
     optimizer = Opt([
-        {'params': model.parameters()},
-        {'params': head.kernel, 'weight_decay': 4e-4}
+        {'params': model.parameters(), 'weight_decay': 1e-4},
+        {'params': head.kernel, 'weight_decay': 1e-3, 'lr': args.lr * 0.5}
     ], lr=args.lr)
 
     if args.schedule_lr:
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.schedule_epoch, args.schedule_step)
 
-    best_acc, best_ckpt_name = 0, ''
+    best_acc, best_ckpt_name = 0, f'model-best-{start_time}.pth'
     pathlib.Path('ckpt').mkdir(exist_ok=True)
-
+    start_time = datetime.datetime.now().strftime("%m%d-%H%M%S")
     for epoch in range(args.epochs):
         print()
 
@@ -147,15 +147,14 @@ if __name__ == '__main__':
         auc, r1_acc = evaluate(model, val_dataset, val_dataloader)
         if r1_acc > best_acc:
             best_acc = r1_acc
-            best_ckpt_name = f'model-best-{datetime.datetime.now().strftime("%m%d-%H")}.pth'
             torch.save(model.state_dict(), f'ckpt/{best_ckpt_name}')
 
         print(f"\t| AUC: {auc:.3f}")
         print(f"\t| rank-1 ACC: {r1_acc:.3f}")
 
-    ckpt_name = f'model-{datetime.datetime.now().strftime("%m%d-%H%M%S")}.pth'
+    ckpt_name = f'model-{start_time}.pth'
     torch.save(model.state_dict(), f'ckpt/{ckpt_name}')
 
     print('\n', f'Settings: {args}')
     print(f'Save checkpoint to ckpt/{ckpt_name}.')
-    print(f'Save best checkpoint to ckpt/{best_ckpt_name}.')
+    print(f'Save best checkpoint to ckpt/{best_ckpt_name}, best acc = {best_acc}.')
