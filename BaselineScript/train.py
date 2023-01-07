@@ -53,6 +53,7 @@ def get_parser():
     parser.add_argument('--freeze-head', type=int, default=0, help='freeze the head after N epochs')
     parser.add_argument('--refresh-head', type=int, default=0, help='re-initialize the head after N epochs')
 
+    parser.add_argument('--sigma', type=float, default=1, help='std of gaussian sampling')
     parser.add_argument('--kl-div-factor', type=float, default=0, help='enable optimization on kl-divergence')
 
     parser.add_argument('--ckpt', default='', help='continue training')
@@ -96,7 +97,7 @@ if __name__ == '__main__':
         transform=T.Compose([T.Resize(112), T.ToTensor(), normalization]))
     val_dataloader = DataLoader(val_dataset, 32, num_workers=2, prefetch_factor=8)
 
-    model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=args.ckpt).model
+    model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=args.ckpt, sigma=args.sigma).model
     model.train().to('cuda')
     summary(model, [[3, 112, 112]])
 

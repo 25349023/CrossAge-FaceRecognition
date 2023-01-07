@@ -215,14 +215,14 @@ class Residual(Module):
         return self.model(x)
 
 
-def gaussian_sampling(mu):
+def gaussian_sampling(mu, sigma):
     epsilon = torch.normal(0, 1, mu.size(), device=mu.device)
     # sigma = torch.exp(log_var / 2)
-    return mu + epsilon
+    return mu + epsilon * sigma
 
 
 class MobileFaceNet(Module):
-    def __init__(self, embedding_size):
+    def __init__(self, embedding_size, sigma=1):
         super(MobileFaceNet, self).__init__()
         self.conv1 = Conv_block(3, 64, kernel=(3, 3), stride=(2, 2), padding=(1, 1))
         self.conv2_dw = Conv_block(64, 64, kernel=(3, 3), stride=(1, 1), padding=(1, 1), groups=64)
@@ -241,6 +241,7 @@ class MobileFaceNet(Module):
 
         self.out_mu = None
         self.out_logvar = None
+        self.sigma = sigma
 
     @staticmethod
     def kl_loss_fn(mu, log_var):
@@ -268,7 +269,7 @@ class MobileFaceNet(Module):
 
         self.out_mu = self.linear_mu(out)
         # self.out_logvar = self.linear_logvar(out)
-        out = gaussian_sampling(self.out_mu)
+        out = gaussian_sampling(self.out_mu, self.sigma)
         out = self.bn(out)
         return l2_norm(out)
 
