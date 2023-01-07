@@ -215,10 +215,10 @@ class Residual(Module):
         return self.model(x)
 
 
-def gaussian_sampling(mu, log_var):
+def gaussian_sampling(mu):
     epsilon = torch.normal(0, 1, mu.size(), device=mu.device)
-    sigma = torch.exp(log_var / 2)
-    return mu + epsilon * sigma
+    # sigma = torch.exp(log_var / 2)
+    return mu + epsilon
 
 
 class MobileFaceNet(Module):
@@ -236,7 +236,7 @@ class MobileFaceNet(Module):
         self.conv_6_dw = Linear_block(512, 512, groups=512, kernel=(7, 7), stride=(1, 1), padding=(0, 0))
         self.conv_6_flatten = Flatten()
         self.linear_mu = Linear(512, embedding_size, bias=False)
-        self.linear_logvar = Linear(512, embedding_size, bias=False)
+        # self.linear_logvar = Linear(512, embedding_size, bias=False)
         self.bn = BatchNorm1d(embedding_size)
 
         self.out_mu = None
@@ -267,8 +267,8 @@ class MobileFaceNet(Module):
         out = self.conv_6_flatten(out)
 
         self.out_mu = self.linear_mu(out)
-        self.out_logvar = self.linear_logvar(out)
-        out = gaussian_sampling(self.out_mu, self.out_logvar)
+        # self.out_logvar = self.linear_logvar(out)
+        out = gaussian_sampling(self.out_mu)
         out = self.bn(out)
         return l2_norm(out)
 
