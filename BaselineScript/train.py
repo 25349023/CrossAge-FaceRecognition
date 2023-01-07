@@ -53,6 +53,8 @@ def get_parser():
     parser.add_argument('--freeze-head', type=int, default=0, help='freeze the head after N epochs')
     parser.add_argument('--refresh-head', type=int, default=0, help='re-initialize the head after N epochs')
 
+    parser.add_argument('--kl-div-factor', type=float, default=0, help='enable optimization on kl-divergence')
+
     parser.add_argument('--ckpt', default='', help='continue training')
 
     return parser
@@ -137,6 +139,8 @@ if __name__ == '__main__':
             emb = model(x)
             theta = head(emb, y)
             loss = cross_ent(theta, y)
+            if args.kl_div_factor > 0:
+                loss += args.kl_div_factor * model.loss()
 
             optimizer.zero_grad()
             loss.backward()

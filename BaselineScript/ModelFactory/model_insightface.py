@@ -239,6 +239,18 @@ class MobileFaceNet(Module):
         self.linear_logvar = Linear(512, embedding_size, bias=False)
         self.bn = BatchNorm1d(embedding_size)
 
+        self.out_mu = None
+        self.out_logvar = None
+
+    @staticmethod
+    def kl_loss_fn(mu, log_var):
+        kl = 0.5 * torch.sum(mu ** 2 + log_var.exp() - 1 - log_var, dim=1)
+        return torch.mean(kl)
+
+    def loss(self):
+        kl_div = self.kl_loss_fn(self.out_mu, self.out_logvar)
+        return kl_div
+
     def forward(self, x):
         out = self.conv1(x)
         out = self.conv2_dw(out)
@@ -254,9 +266,9 @@ class MobileFaceNet(Module):
         out = self.conv_6_dw(out)
         out = self.conv_6_flatten(out)
 
-        out_mu = self.linear_mu(out)
-        out_logvar = self.linear_logvar(out)
-        out = gaussian_sampling(out_mu, out_logvar)
+        self.out_mu = self.linear_mu(out)
+        self.out_logvar = self.linear_logvar(out)
+        out = gaussian_sampling(self.out_mu, self.out_logvar)
         out = self.bn(out)
         return l2_norm(out)
 
