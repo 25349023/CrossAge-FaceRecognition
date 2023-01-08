@@ -50,7 +50,8 @@ if __name__ == '__main__':
 
     model = FaceFeatureExtractor.insightFace("mobilefacenet", args.ckpt).model
     TestCALFWDataset(
-        '../data/ForTesting', 'Test_PairList.csv', 'Test_team09_results.csv', model,
+        '../data/ForTesting', 'Test_PairList.csv',
+        f'Test_team09_results_{args.ckpt.split(".")[0].split("-")[-1]}.csv', model,
         transform=T.Compose([T.Resize(112), T.ToTensor(),
                              T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
     )

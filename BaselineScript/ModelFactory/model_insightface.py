@@ -236,7 +236,7 @@ class MobileFaceNet(Module):
         self.conv_6_dw = Linear_block(512, 512, groups=512, kernel=(7, 7), stride=(1, 1), padding=(0, 0))
         self.conv_6_flatten = Flatten()
         self.linear_mu = Linear(512, embedding_size, bias=False)
-        self.linear_logvar = Linear(512, embedding_size, bias=False)
+        # self.linear_logvar = Linear(512, embedding_size, bias=False)
         self.bn = BatchNorm1d(embedding_size)
 
         self.out_mu = None
