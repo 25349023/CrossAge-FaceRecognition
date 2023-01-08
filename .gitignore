@@ -6,6 +6,7 @@ __pycache__/
 .vs/
 .idea/
 ckpt/
+ForTesting/
 
 BaselineScript/test.ipynb
 BaselineScript/train.ipynb
