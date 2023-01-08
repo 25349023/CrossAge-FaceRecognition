@@ -5,6 +5,7 @@ import heapq
 import os
 import pathlib
 
+import numpy as np
 import torch
 from PIL import Image
 from torchvision import transforms as T
@@ -68,8 +69,9 @@ class GroupingCALFWDataset:
                 self.features.append(self.model(image[None]))
 
     def output_grouping(self, out_path):
-        group_num = [-1] * len(self.features)
-        picked = [False] * len(self.features)
+        num_faces = len(self.features)
+        group_num = [-1] * num_faces
+        picked = np.zeros(num_faces, dtype=bool)
         current_group = -1
 
         for i, feat in enumerate(self.features):
@@ -79,17 +81,19 @@ class GroupingCALFWDataset:
             group_num[i] = current_group
 
             # find 6 the most similar feat
-            heap = []
-            for j, feat2 in enumerate(self.features[i + 1:], 1):
-                if picked[i + j]:
-                    continue
-                sim = get_cosine_similarity(feat, feat2)[0, 0]
-                heapq.heappush(heap, (sim, i + j))
-            same_group = heapq.nlargest(self.id_per_group - 1, heap)
+            similarity = -np.ones(num_faces - i - 1)
+            for _ in range(self.id_per_group - 1):
+                new_simi = np.array([get_cosine_similarity(feat, feat2)[0, 0]
+                                     for feat2 in self.features[i + 1:]])
+                to_be_updated = (~picked[i+1:]) & (new_simi > similarity)
+                similarity[to_be_updated] = new_simi[to_be_updated]
+                next_id = i + 1 + np.nanargmax(similarity)
+                # print(f'{current_group}: {next_id} - {similarity[next_id - i - 1]}')
 
-            for _, id in same_group:
-                picked[id] = True
-                group_num[id] = current_group
+                feat = self.features[next_id]
+                group_num[next_id] = current_group
+                picked[next_id] = True
+                similarity[next_id - i - 1] = np.nan
 
         with open(os.path.join(self.root, out_path), 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
