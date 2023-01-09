@@ -55,7 +55,8 @@ class GroupingCALFWDataset:
         self.features = []
         self.transform = transform
         self.gen_all_features_from(filelist_path)
-        self.output_grouping(out_path)
+        # self.output_grouping(out_path)
+        self.k_means(out_path)
 
     def gen_all_features_from(self, filelist_path):
         self.model.eval()
@@ -85,7 +86,7 @@ class GroupingCALFWDataset:
             for _ in range(self.id_per_group - 1):
                 new_simi = np.array([get_cosine_similarity(feat, feat2)[0, 0]
                                      for feat2 in self.features[i + 1:]])
-                to_be_updated = (~picked[i+1:]) & (new_simi > similarity)
+                to_be_updated = (~picked[i + 1:]) & (new_simi > similarity)
                 similarity[to_be_updated] = new_simi[to_be_updated]
                 next_id = i + 1 + np.nanargmax(similarity)
                 # print(f'{current_group}: {next_id} - {similarity[next_id - i - 1]}')
@@ -98,6 +99,20 @@ class GroupingCALFWDataset:
         with open(os.path.join(self.root, out_path), 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             for g in group_num:
+                writer.writerow([g])
+
+    def k_means(self, out_path):
+        from nltk.cluster.kmeans import KMeansClusterer
+        import nltk
+        NUM_CLUSTERS = 20
+        data = np.concatenate(self.features, axis=0)  # .toarray()
+
+        kclusterer = KMeansClusterer(NUM_CLUSTERS, distance=nltk.cluster.util.cosine_distance, repeats=50)
+        assigned_clusters = kclusterer.cluster(data, assign_clusters=True)
+
+        with open(os.path.join(self.root, out_path), 'w', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            for g in assigned_clusters:
                 writer.writerow([g])
 
 
