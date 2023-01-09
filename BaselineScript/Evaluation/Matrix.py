@@ -87,3 +87,23 @@ def get_rank_one(pred_similarity, ground_truth, num_faces):
         total_success += success
 
     return float(total_success) / num_faces
+
+def get_tar_at_far(pred_similarity, ground_truth, levels=[1e-4, 1e-3, 1e-2, 1e-1]):
+    ''' this function return the tar@far of the input
+    
+    Args:
+        pred_similarity (numpy_array, size:(B, 1)): 
+            the predicted similarity results
+
+        ground_truth (numpy_array, size:(B, 1)): 
+            the ground truth of whether each pair is same or not (same=1, not_same=0)
+    '''
+
+    from sklearn import metrics
+    from scipy import interpolate
+
+    fpr, tpr, thresholds = metrics.roc_curve(ground_truth, pred_similarity)
+    f_interp = interpolate.interp1d(fpr, tpr)
+    tpr_at_fpr = [ f_interp(x).item() for x in levels ]
+
+    return tpr_at_fpr

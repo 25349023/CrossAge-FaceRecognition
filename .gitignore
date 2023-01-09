@@ -10,3 +10,13 @@ ckpt/
 BaselineScript/test.ipynb
 BaselineScript/train.ipynb
 BaselineScript/test.py
+
+/data/calfw/FGNet_500
+/data/calfw/aligned_aug
+/data/calfw/ForTesting
+/data/calfw/ForGrouping
+
+BaselineScript/results
+data/calfw/ForTraining/CALFW_trainlist_with_group_aug.csv
+data/calfw/ForTraining/aligned_aug_train.csv
+BaselineScript/Test_baseline_results.csv

@@ -32,12 +32,14 @@ def evaluate(model, dataset, dataloader=None):
             gt_pair.append(1 * (ids[i] == ids[j]))
         pd_pair.append(Matrix.get_cosine_similarity(features[i:i + 1], features[i + 1:])[0])
 
-    pd_pair = np.concatenate(pd_pair, axis=0)
+    pd_pair = torch.cat(pd_pair, axis=0)
+    gt_pair = torch.FloatTensor(gt_pair)
 
     auc = Matrix.get_auc(pd_pair, gt_pair)
     r1_acc = Matrix.get_rank_one(pd_pair, gt_pair, len(dataset))
+    tar_at_far = Matrix.get_tar_at_far(pd_pair, gt_pair)
 
-    return auc, r1_acc
+    return auc, r1_acc, tar_at_far
 
 
 if __name__ == "__main__":

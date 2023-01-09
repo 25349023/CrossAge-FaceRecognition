@@ -214,6 +214,10 @@ class Residual(Module):
     def forward(self, x):
         return self.model(x)
 
+def gaussian_sampling(mu, sigma=1.0):
+    epsilon = torch.normal(0, 1, mu.size(), device=mu.device)
+    return mu + epsilon * sigma
+
 
 class MobileFaceNet(Module):
     def __init__(self, embedding_size):
@@ -232,7 +236,9 @@ class MobileFaceNet(Module):
         self.linear = Linear(512, embedding_size, bias=False)
         self.bn = BatchNorm1d(embedding_size)
 
-    def forward(self, x):
+        self.output_l2 = True
+
+    def forward(self, x, ret_hidden=False):
         out = self.conv1(x)
         out = self.conv2_dw(out)
 
@@ -245,86 +251,94 @@ class MobileFaceNet(Module):
 
         out = self.conv_6_sep(out)
         out = self.conv_6_dw(out)
-        out = self.conv_6_flatten(out)
+        hidden = self.conv_6_flatten(out)
 
-        out = self.linear(out)
+        out = self.linear(hidden)
+        # out = gaussian_sampling(out)
         out = self.bn(out)
-        return l2_norm(out)
+
+        if self.output_l2:
+            out = l2_norm(out)
+        
+        if ret_hidden:
+            return out, hidden
+        return out
+
+class PFC(Module):
+    def __init__(self, inplanes, outplanes):
+        super(PFC, self).__init__()
+        self.fc = Linear(inplanes, outplanes)
+        # self.bn = BatchNorm1d(outplanes)
+        self.act = PReLU()
+
+    def forward(self, x):
+        x = self.fc(x)
+        # x = self.bn(x)
+        return self.act(x)
 
 class AgeDecisionNet(Module):
     def __init__(self, input_size=512, embedding_size=256, output_size=4):
         super(AgeDecisionNet, self).__init__()
-        self.fc1 = Linear(input_size, input_size, bias=False)
-        self.fc2 = Linear(input_size, embedding_size, bias=False)
-        self.fc3 = Linear(embedding_size, output_size, bias=False)
+        # self.fc1 = Linear(input_size, embedding_size)
+        # self.fc2 = Linear(embedding_size, output_size, bias=False)
+        # self.act = PReLU()
+
+        self.fc1 = PFC(input_size, embedding_size)
+        self.fc2 = PFC(embedding_size, output_size)
+
     
     def forward(self, x):
+        # output = self.act(self.fc1(x))
+        # output = self.act(self.fc2(output))
+
         output = self.fc1(x)
         output = self.fc2(output)
-        output = self.fc3(output)
 
         return output
 
 class GroupMobileFaceNet(Module):
-    def __init__(self, embedding_size):
+    def __init__(self, embedding_size, gfn_output_l2=True):
         super(GroupMobileFaceNet, self).__init__()
-        self.conv1 = Conv_block(3, 64, kernel=(3, 3), stride=(2, 2), padding=(1, 1))
-        self.conv2_dw = Conv_block(64, 64, kernel=(3, 3), stride=(1, 1), padding=(1, 1), groups=64)
-        self.conv_23 = Depth_Wise(64, 64, kernel=(3, 3), stride=(2, 2), padding=(1, 1), groups=128)
-        self.conv_3 = Residual(64, num_block=4, groups=128, kernel=(3, 3), stride=(1, 1), padding=(1, 1))
-        self.conv_34 = Depth_Wise(64, 128, kernel=(3, 3), stride=(2, 2), padding=(1, 1), groups=256)
-        self.conv_4 = Residual(128, num_block=6, groups=256, kernel=(3, 3), stride=(1, 1), padding=(1, 1))
-        self.conv_45 = Depth_Wise(128, 128, kernel=(3, 3), stride=(2, 2), padding=(1, 1), groups=512)
-        self.conv_5 = Residual(128, num_block=2, groups=256, kernel=(3, 3), stride=(1, 1), padding=(1, 1))
-        self.conv_6_sep = Conv_block(128, 512, kernel=(1, 1), stride=(1, 1), padding=(0, 0))
-        self.conv_6_dw = Linear_block(512, 512, groups=512, kernel=(7, 7), stride=(1, 1), padding=(0, 0))
-        self.conv_6_flatten = Flatten()
-        self.linear = Linear(512, embedding_size, bias=False)
-        self.bn = BatchNorm1d(embedding_size)
+        self.gfn = MobileFaceNet(embedding_size)
+        self.gfn.output_l2 = gfn_output_l2
 
+        # self.id_fc = PFC(embedding_size, embedding_size)
         self.age_group = ModuleList()
         num_group = 4
 
         for _ in range(num_group):
-            module = [Linear(512, embedding_size, bias=False), BatchNorm1d(embedding_size)]
-            self.age_group.append(Sequential(*module))
+            # module = [Linear(512, embedding_size, bias=False), BatchNorm1d(embedding_size)]
+            # self.age_group.append(Sequential(*module))
+            self.age_group.append(PFC(embedding_size, embedding_size))
 
         self.softmax = LogSoftmax(dim=1)
         self.adn = AgeDecisionNet(embedding_size, int(embedding_size/2), num_group)
+        # self.bn = BatchNorm1d(embedding_size)
 
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.conv2_dw(out)
+    def load_gft_weight(self, ckpt_path):
+        self.gfn.load_state_dict(torch.load(ckpt_path))
 
-        out = self.conv_23(out)
-        out = self.conv_3(out)
-        out = self.conv_34(out)
-        out = self.conv_4(out)
-        out = self.conv_45(out)
-        out = self.conv_5(out)
+    def forward(self, x, ret_vote=False):
+        id_emb, hidden = self.gfn(x, True)
 
-        out = self.conv_6_sep(out)
-        out = self.conv_6_dw(out)
-        emb = self.conv_6_flatten(out)
-
-        idp = self.linear(emb)
-        idp = self.bn(idp)
-
-        age = []
+        age_emb = []
         for module in self.age_group:
-            age.append(module(emb))
+            age_emb.append(module(hidden))
         
 
-        ap = self.adn(idp)
-        hp = self.softmax(ap)
+        age_vote = self.adn(id_emb)
+        age_prob = self.softmax(age_vote)
 
-        age = torch.stack(age, dim=1)
-        agp = torch.sum(age * hp[..., None], dim=1)
+        age_emb = torch.stack(age_emb, dim=1)
+        age_emb = torch.sum(age_emb * age_prob[..., None], dim=1)
 
-        out = agp+idp
+        out = id_emb+age_emb
+        # out = gaussian_sampling(out)
+        # out = self.bn(out)
         
-
-        return l2_norm(out), ap
+        if ret_vote:
+            return l2_norm(out), age_vote #  l2_norm(out), id_emb, age_emb
+        return l2_norm(out)
 
 ##################################  Arcface head #############################################################
 
@@ -373,7 +387,7 @@ class Arcface(Module):
 
 class Am_softmax(Module):
     # implementation of additive margin softmax loss in https://arxiv.org/abs/1801.05599    
-    def __init__(self, embedding_size=512, classnum=51332):
+    def __init__(self, embedding_size=512, classnum=51332, m=0.35, s=30):
         super(Am_softmax, self).__init__()
         self.classnum = classnum
         self.kernel = Parameter(torch.Tensor(embedding_size, classnum))
@@ -381,6 +395,7 @@ class Am_softmax(Module):
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
         self.m = 0.35  # additive margin recommended by the paper
         self.s = 30.  # see normface https://arxiv.org/abs/1704.06369
+    
 
     def forward(self, embbedings, label):
         kernel_norm = l2_norm(self.kernel, axis=0)
