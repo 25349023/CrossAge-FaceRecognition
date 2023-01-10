@@ -123,6 +123,8 @@ if __name__ == '__main__':
     start_time = datetime.datetime.now().strftime("%m%d-%H%M%S")
     best_acc, best_ckpt_name = 0, f'model-best-{start_time}.pth'
 
+    sigma = args.sigma
+
     for epoch in range(args.epochs):
         print()
 
@@ -134,10 +136,14 @@ if __name__ == '__main__':
             print(' refresh the head '.center(30, '='))
             head.init_kernel()
 
+        if epoch > 0 and epoch % 30 == 0:
+            sigma -= 0.2 * args.sigma
+            sigma = max(sigma, 0)
+
         model.train()
         for x, y in tqdm.tqdm(dataloader, file=sys.stdout, desc='Training: ', leave=False):
             x, y = x.to('cuda'), y.to('cuda')
-            emb = model(x, 0)
+            emb = model(x, sigma)
             theta = head(emb, y)
             loss = cross_ent(theta, y)
             if args.kl_div_factor > 0:
@@ -150,7 +156,7 @@ if __name__ == '__main__':
         if args.contrastive:
             for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Cont): ', leave=False):
                 x1, x2 = x1.to('cuda'), x2.to('cuda')
-                emb = (model(x1, args.sigma), model(x2, args.sigma))
+                emb = (model(x1, sigma), model(x2, sigma))
                 inter_loss, intra_loss = contrastive_loss(*emb)
                 ct_loss = inter_loss
                 if args.cont_intra:
