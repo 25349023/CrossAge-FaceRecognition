@@ -33,7 +33,7 @@ class TestCALFWDataset:
                 if self.transform is not None:
                     image = self.transform(image)
 
-                self.features[file.name] = self.model(image[None])
+                self.features[file.name] = self.model(image[None], 0)
                 # print(self.features[file.name].shape)
 
     def output_similarity(self, filelist_path, out_path):
@@ -67,7 +67,7 @@ class GroupingCALFWDataset:
                 if self.transform is not None:
                     image = self.transform(image)
 
-                self.features.append(self.model(image[None]))
+                self.features.append(self.model(image[None]), 0)
 
     def output_grouping(self, out_path):
         num_faces = len(self.features)

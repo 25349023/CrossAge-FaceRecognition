@@ -137,7 +137,7 @@ if __name__ == '__main__':
         model.train()
         for x, y in tqdm.tqdm(dataloader, file=sys.stdout, desc='Training: ', leave=False):
             x, y = x.to('cuda'), y.to('cuda')
-            emb = model(x)
+            emb = model(x, 0)
             theta = head(emb, y)
             loss = cross_ent(theta, y)
             if args.kl_div_factor > 0:
@@ -150,7 +150,7 @@ if __name__ == '__main__':
         if args.contrastive:
             for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Cont): ', leave=False):
                 x1, x2 = x1.to('cuda'), x2.to('cuda')
-                emb = (model(x1), model(x2))
+                emb = (model(x1, args.sigma), model(x2, args.sigma))
                 inter_loss, intra_loss = contrastive_loss(*emb)
                 ct_loss = inter_loss
                 if args.cont_intra:

@@ -16,7 +16,7 @@ def evaluate(model, dataset, dataloader=None):
         features = []
         for i, (pics, labels) in enumerate(tqdm.tqdm(dataloader, file=sys.stdout, desc='Evaluating: ', leave=False)):
             pics = pics.to('cuda')
-            features.append(model(pics))
+            features.append(model(pics, 0))
         features = torch.cat(features, dim=0).cpu()
 
     '''

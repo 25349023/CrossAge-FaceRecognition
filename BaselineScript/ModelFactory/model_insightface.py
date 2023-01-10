@@ -252,7 +252,7 @@ class MobileFaceNet(Module):
         kl_div = self.kl_loss_fn(self.out_mu, self.out_logvar)
         return kl_div
 
-    def forward(self, x):
+    def forward(self, x, sigma):
         out = self.conv1(x)
         out = self.conv2_dw(out)
 
@@ -269,7 +269,7 @@ class MobileFaceNet(Module):
 
         self.out_mu = self.linear_mu(out)
         # self.out_logvar = self.linear_logvar(out)
-        out = gaussian_sampling(self.out_mu, self.sigma)
+        out = gaussian_sampling(self.out_mu, sigma)
         out = self.bn(out)
         return l2_norm(out)
 
