@@ -30,7 +30,7 @@ def evaluate(model, dataset, dataloader=None):
     for i in range(len(ids)):
         for j in range(i + 1, len(ids)):
             gt_pair.append(1 * (ids[i] == ids[j]))
-        pd_pair.append(Matrix.get_cosine_similarity(features[i:i + 1], features[i + 1:])[0])
+        pd_pair.append(Matrix.get_cosine_similarity(features[i:i + 1], features[i + 1:], batch=True)[0])
 
     pd_pair = np.concatenate(pd_pair, axis=0)
 
