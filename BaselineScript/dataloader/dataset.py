@@ -44,30 +44,36 @@ class CALFWDataset(Dataset):
 
 
 class PairCALFWDataset(Dataset):
-    def __init__(self, root, filelist_path, group=1, transform=None):
+    def __init__(self, root, filelist_path, group=1, transform=None, with_gt=False):
         self.root = root
-        self.filenames: Dict[str, List[str]] = defaultdict(list)
+        self.filenames: Dict[int, List[str]] = defaultdict(list)
         self.group = group
         self.transform = transform
+        self.name_to_id = {}
+        self.with_gt = with_gt
 
         with open(os.path.join(self.root, filelist_path),
                   'r', encoding='utf-8', newline='') as f:
             for filename, id_name in csv.reader(f):
-                self.filenames[id_name].append(filename)
+                id = self.name_to_id.setdefault(id_name, len(self.name_to_id))
+                self.filenames[id].append(filename)
 
         self.pos_pair = list(chain.from_iterable(
-            combinations(group, 2) for group in self.filenames.values())
+            map(lambda p: (*p, id), combinations(group, 2))
+            for id, group in self.filenames.items())
         )
 
     def __getitem__(self, item):
-        fnames = [self.pos_pair[i] for i in range(item, item + self.group)]
-        image_pairs = [[Image.open(os.path.join(self.root, 'aligned images', f)) for f in pair]
-                       for pair in fnames]
+        pairs = [self.pos_pair[i] for i in range(item, item + self.group)]
+        image_pairs = [[Image.open(os.path.join(self.root, 'aligned images', f)) for f in pair[:2]]
+                       for pair in pairs]
 
         if self.transform is not None:
             image_pairs = [[self.transform(img) for img in pair] for pair in image_pairs]
 
         if self.group == 1:
+            if self.with_gt:
+                return *image_pairs[0], pairs[0][-1]
             return image_pairs[0]
 
         return image_pairs

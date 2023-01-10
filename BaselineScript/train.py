@@ -50,6 +50,8 @@ def get_parser():
                         help='factor of contrastive loss')
     parser.add_argument('--cont-intra', action='store_true', help='enable intra contrastive loss')
 
+    parser.add_argument('--blend', action='store_true', help='enable blending same person images')
+
     parser.add_argument('--freeze-head', type=int, default=0, help='freeze the head after N epochs')
     parser.add_argument('--refresh-head', type=int, default=0, help='re-initialize the head after N epochs')
 
@@ -89,7 +91,7 @@ if __name__ == '__main__':
 
     pair_dataset = PairCALFWDataset(
         '../data/calfw', 'ForTraining/CALFW_trainlist.csv',
-        transform=T.Compose(train_transform + [T.ToTensor(), normalization]))
+        transform=T.Compose(train_transform + [T.ToTensor(), normalization]), with_gt=True)
     pair_dataloader = DataLoader(pair_dataset, 64, shuffle=True, num_workers=2, prefetch_factor=8)
 
     val_dataset = CALFWDataset(
@@ -153,8 +155,24 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
+        if args.blend:
+            for x1, x2, y in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Blend): ', leave=False):
+                alpha = torch.rand(x1.shape[0])[:, None, None, None]
+                xm = x1 * alpha + x2 * (1 - alpha)
+
+                xm, y = xm.to('cuda'), y.to('cuda')
+                emb = model(xm, sigma)
+                theta = head(emb, y)
+                loss = cross_ent(theta, y)
+                if args.kl_div_factor > 0:
+                    loss += args.kl_div_factor * model.loss()
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
         if args.contrastive:
-            for x1, x2 in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Cont): ', leave=False):
+            for x1, x2, _ in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Cont): ', leave=False):
                 x1, x2 = x1.to('cuda'), x2.to('cuda')
                 emb = (model(x1, sigma), model(x2, sigma))
                 inter_loss, intra_loss = contrastive_loss(*emb)
