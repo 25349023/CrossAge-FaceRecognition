@@ -99,7 +99,7 @@ if __name__ == '__main__':
 
     model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=args.ckpt, sigma=args.sigma).model
     model.train().to('cuda')
-    summary(model, [[3, 112, 112]])
+    # summary(model, [[3, 112, 112]])
 
     if args.ckpt:
         print(f' Continue training from {args.ckpt} '.center(80, '#'))
