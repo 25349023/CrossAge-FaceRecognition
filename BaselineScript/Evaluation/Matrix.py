@@ -1,9 +1,13 @@
 import numpy as np
 
 
-def get_cosine_similarity(feat1, feat2):
-    feat1 = feat1 / np.linalg.norm(feat1)
-    feat2 = feat2 / np.linalg.norm(feat2)
+def get_cosine_similarity(feat1, feat2, batch=False):
+    if batch:
+        feat1 = feat1 / np.linalg.norm(feat1, axis=1)[..., None]
+        feat2 = feat2 / np.linalg.norm(feat2, axis=1)[..., None]
+    else:
+        feat1 = feat1 / np.linalg.norm(feat1)
+        feat2 = feat2 / np.linalg.norm(feat2)
     result = np.dot(feat1, feat2.T)
 
     return result
