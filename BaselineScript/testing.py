@@ -67,7 +67,7 @@ class GroupingCALFWDataset:
                 if self.transform is not None:
                     image = self.transform(image)
 
-                self.features.append(self.model(image[None]), 0)
+                self.features.append(self.model(image[None], 0))
 
     def output_grouping(self, out_path):
         num_faces = len(self.features)

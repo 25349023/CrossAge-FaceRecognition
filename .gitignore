@@ -8,6 +8,5 @@ __pycache__/
 ckpt/
 ForTesting/
 
-BaselineScript/test.ipynb
-BaselineScript/train.ipynb
+BaselineScript/*.ipynb
 BaselineScript/test.py
