@@ -215,8 +215,14 @@ class Residual(Module):
         return self.model(x)
 
 
+def gaussian_sampling(mu, sigma):
+    epsilon = torch.normal(0, 1, mu.size(), device=mu.device)
+    # sigma = torch.exp(log_var / 2)
+    return mu + epsilon * sigma
+
+
 class MobileFaceNet(Module):
-    def __init__(self, embedding_size):
+    def __init__(self, embedding_size, sigma=1):
         super(MobileFaceNet, self).__init__()
         self.conv1 = Conv_block(3, 64, kernel=(3, 3), stride=(2, 2), padding=(1, 1))
         self.conv2_dw = Conv_block(64, 64, kernel=(3, 3), stride=(1, 1), padding=(1, 1), groups=64)
@@ -229,10 +235,24 @@ class MobileFaceNet(Module):
         self.conv_6_sep = Conv_block(128, 512, kernel=(1, 1), stride=(1, 1), padding=(0, 0))
         self.conv_6_dw = Linear_block(512, 512, groups=512, kernel=(7, 7), stride=(1, 1), padding=(0, 0))
         self.conv_6_flatten = Flatten()
-        self.linear = Linear(512, embedding_size, bias=False)
+        self.linear_mu = Linear(512, embedding_size, bias=False)
+        # self.linear_logvar = Linear(512, embedding_size, bias=False)
         self.bn = BatchNorm1d(embedding_size)
 
-    def forward(self, x):
+        self.out_mu = None
+        self.out_logvar = None
+        self.sigma = sigma
+
+    @staticmethod
+    def kl_loss_fn(mu, log_var):
+        kl = 0.5 * torch.sum(mu ** 2 + log_var.exp() - 1 - log_var, dim=1)
+        return torch.mean(kl)
+
+    def loss(self):
+        kl_div = self.kl_loss_fn(self.out_mu, self.out_logvar)
+        return kl_div
+
+    def forward(self, x, sigma):
         out = self.conv1(x)
         out = self.conv2_dw(out)
 
@@ -247,7 +267,9 @@ class MobileFaceNet(Module):
         out = self.conv_6_dw(out)
         out = self.conv_6_flatten(out)
 
-        out = self.linear(out)
+        self.out_mu = self.linear_mu(out)
+        # self.out_logvar = self.linear_logvar(out)
+        out = gaussian_sampling(self.out_mu, sigma)
         out = self.bn(out)
         return l2_norm(out)
 
@@ -268,6 +290,9 @@ class Arcface(Module):
         self.sin_m = math.sin(m)
         self.mm = self.sin_m * m  # issue 1
         self.threshold = math.cos(math.pi - m)
+
+    def init_kernel(self):
+        self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
 
     def forward(self, embbedings, label):
         # weights norm
@@ -308,6 +333,9 @@ class Am_softmax(Module):
         self.m = 0.35  # additive margin recommended by the paper
         self.s = 30.  # see normface https://arxiv.org/abs/1704.06369
 
+    def init_kernel(self):
+        self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
+
     def forward(self, embbedings, label):
         kernel_norm = l2_norm(self.kernel, axis=0)
         cos_theta = torch.mm(embbedings, kernel_norm)
@@ -316,8 +344,48 @@ class Am_softmax(Module):
         label = label.view(-1, 1)  # size=(B,1)
         index = cos_theta.data * 0.0  # size=(B,Classnum)
         index.scatter_(1, label.data.view(-1, 1), 1)
-        index = index.byte()
+        index = index.to(torch.bool)
         output = cos_theta * 1.0
         output[index] = phi[index]  # only change the correct predicted output
-        output *= self.s  # scale up in order to make softmax work, first introduced in normface
+        output = phi * self.s  # scale up in order to make softmax work, first introduced in normface
         return output
+
+
+class ContrastiveLoss(Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, feat1, feat2):
+        def cos_sim(f1, f2):
+            z1 = F.normalize(f1, dim=-1, p=2)
+            z2 = F.normalize(f2, dim=-1, p=2)
+            return torch.mm(z1, z2.t())
+
+        inter_sim = torch.exp(cos_sim(feat1, feat2))
+        intra_sim = torch.exp(cos_sim(feat1, feat2))
+
+        l_inter = -torch.log(inter_sim.diag() / inter_sim.sum(dim=-1))
+        l_intra = -torch.log(inter_sim.diag() /
+                             (inter_sim.sum(dim=-1) + intra_sim.sum(dim=-1) - intra_sim.diag()))
+        return l_inter.mean(), l_intra.mean()
+
+# class SinCosCrossSim(Module):
+#     def __init__(self, embedding_size=512, classnum=51332):
+#         super().__init__()
+#
+#     def forward(self, feat_pair1, feat_pair2):
+#         """
+#         :param feat_pair1: tuple of paired feature tensor
+#         :param feat_pair2: tuple of another paired feature tensor
+#         :return: squared-sine directional-similarity
+#         """
+#
+#         diff1 = feat_pair1[0] - feat_pair1[1]
+#         diff2 = feat_pair2[0] - feat_pair2[1]
+#         # diff1 /= torch.norm(diff1, dim=-1, keepdim=True) + 1e-8
+#         # diff2 /= torch.norm(diff2, dim=-1, keepdim=True) + 1e-8
+#         # squared_cos = diff1[:, None].bmm(diff2[..., None]).square()
+#
+#         squared_cos = F.cosine_similarity(diff1, diff2).square()
+#         # squared_sin = squared_cos - 1
+#         return -squared_cos.mean()

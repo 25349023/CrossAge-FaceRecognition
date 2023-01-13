@@ -16,7 +16,7 @@ def evaluate(model, dataset, dataloader=None):
         features = []
         for i, (pics, labels) in enumerate(tqdm.tqdm(dataloader, file=sys.stdout, desc='Evaluating: ', leave=False)):
             pics = pics.to('cuda')
-            features.append(model(pics))
+            features.append(model(pics, 0))
         features = torch.cat(features, dim=0).cpu()
 
     '''
@@ -51,11 +51,11 @@ if __name__ == "__main__":
     parser.add_argument('--ckpt', default='Model/model_mobilefacenet.pth')
     args = parser.parse_args()
 
-    facerecognition = FaceFeatureExtractor.insightFace("mobilefacenet", args.ckpt)
+    facerecognition = FaceFeatureExtractor.insightFace("mobilefacenet", args.ckpt, sigma=0)
     model = facerecognition.model.to('cuda')
 
     dataset = CALFWDataset('../data/calfw', 'ForTraining/CALFW_validationlist.csv',
-                           transform=T.Compose([T.CenterCrop(112), T.ToTensor(),
+                           transform=T.Compose([T.Resize(112), T.ToTensor(),
                                                 T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])]))
 
     auc, r1_acc = evaluate(model, dataset)

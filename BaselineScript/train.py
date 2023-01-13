@@ -8,20 +8,21 @@ from typing import Any, List
 import torch.optim
 import tqdm
 from torch import nn
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchsummary import summary
 from torchvision import transforms as T
 
 from Evaluate import evaluate
 from ModelFactory import FaceFeatureExtractor, model_insightface
-from dataloader.dataset import CALFWDataset
+from dataloader.dataset import CALFWDataset, PairCALFWDataset
 
 
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--epochs', type=int, default=40)
-    parser.add_argument('--lr', type=float, default=3e-3)
-    parser.add_argument('--optimizer', default='Adam')
+    parser.add_argument('--epochs', type=int, default=40, help=' ')
+    parser.add_argument('--lr', type=float, default=3e-3, help=' ')
+    parser.add_argument('--optimizer', default='Adam', help=' ')
     parser.add_argument('--schedule-lr', action='store_true', help='enable the lr scheduling')
     parser.add_argument('--schedule-epoch', type=int, default=6, help='decay the lr every N epochs')
     parser.add_argument('--schedule-step', type=float, default=0.3, help='decay the lr by the given factor',
@@ -41,14 +42,35 @@ def get_parser():
                         help='settings for Color Jittering',
                         metavar=('BRIGHTNESS', 'CONTRAST', 'SATURATION', 'HUE'))
 
+    parser.add_argument('--head', default='Arcface', help='set the head module')
+
+    parser.add_argument('--contrastive', action='store_true',
+                        help='enable supervised contrastive loss')
+    parser.add_argument('--cont-factor', type=float, default=1.0,
+                        help='factor of contrastive loss')
+    parser.add_argument('--cont-intra', action='store_true', help='enable intra contrastive loss')
+
+    parser.add_argument('--blend', action='store_true', help='enable blending same person images')
+
+    parser.add_argument('--freeze-head', type=int, default=0, help='freeze the head after N epochs')
+    parser.add_argument('--refresh-head', type=int, default=0, help='re-initialize the head after N epochs')
+
+    parser.add_argument('--sigma', type=float, default=1, help='std of gaussian sampling')
+    parser.add_argument('--kl-div-factor', type=float, default=0, help='enable optimization on kl-divergence')
+
+    parser.add_argument('--ckpt', default='', help='continue training')
+
     return parser
 
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
+    if all([args.freeze_head, args.refresh_head]):
+        raise ValueError('cannot specify freeze-head and refresh-head at the same time')
+
     print(args, '\n')
 
-    train_transform: List[Any] = [T.CenterCrop(args.crop[0]), T.RandomCrop(args.crop[1])]
+    train_transform: List[Any] = [T.Resize(args.crop[0]), T.RandomCrop(args.crop[1])]
     if args.resize > 0:
         train_transform.append(T.Resize(args.resize))
 
@@ -67,54 +89,121 @@ if __name__ == '__main__':
         transform=T.Compose(train_transform + [T.ToTensor(), normalization]))
     dataloader = DataLoader(dataset, 64, shuffle=True, num_workers=2, prefetch_factor=8)
 
+    pair_dataset = PairCALFWDataset(
+        '../data/calfw', 'ForTraining/CALFW_trainlist.csv',
+        transform=T.Compose(train_transform + [T.ToTensor(), normalization]), with_gt=True)
+    pair_dataloader = DataLoader(pair_dataset, 64, shuffle=True, num_workers=2, prefetch_factor=8)
+
     val_dataset = CALFWDataset(
         '../data/calfw', 'ForTraining/CALFW_validationlist.csv',
-        transform=T.Compose([T.CenterCrop(112), T.ToTensor(), normalization]))
+        transform=T.Compose([T.Resize(112), T.ToTensor(), normalization]))
     val_dataloader = DataLoader(val_dataset, 32, num_workers=2, prefetch_factor=8)
 
-    model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=False).model
+    model = FaceFeatureExtractor.insightFace("mobilefacenet", ckpt_path=args.ckpt, sigma=args.sigma).model
     model.train().to('cuda')
-    summary(model, [[3, 112, 112]])
+    # summary(model, [[3, 112, 112]])
 
-    head = model_insightface.Arcface(embedding_size=512, classnum=dataset.num_class)
+    if args.ckpt:
+        print(f' Continue training from {args.ckpt} '.center(80, '#'))
+
+    Head = getattr(model_insightface, args.head)
+    head = Head(embedding_size=512, classnum=dataset.num_class)
     head.train().to('cuda')
 
     cross_ent = nn.CrossEntropyLoss()
+    contrastive_loss = model_insightface.ContrastiveLoss()
     Opt = getattr(torch.optim, args.optimizer)
     optimizer = Opt([
-        {'params': model.parameters()},
-        {'params': head.kernel, 'weight_decay': 4e-4}
+        {'params': model.parameters(), 'weight_decay': 1e-4},
+        {'params': head.kernel, 'weight_decay': 1e-3, 'lr': args.lr * 0.5}
     ], lr=args.lr)
 
     if args.schedule_lr:
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.schedule_epoch, args.schedule_step)
 
+    pathlib.Path('ckpt').mkdir(exist_ok=True)
+    start_time = datetime.datetime.now().strftime("%m%d-%H%M%S")
+    best_acc, best_ckpt_name = 0, f'model-best-{start_time}.pth'
+
+    sigma = args.sigma
+
     for epoch in range(args.epochs):
         print()
+
+        if 0 < args.freeze_head == epoch:
+            print(' freeze the head '.center(30, '='))
+            head.kernel.requires_grad_(False)
+
+        if 0 < args.refresh_head == epoch:
+            print(' refresh the head '.center(30, '='))
+            head.init_kernel()
+
+        if epoch > 0 and epoch % 30 == 0:
+            sigma -= 0.2 * args.sigma
+            sigma = max(sigma, 0)
 
         model.train()
         for x, y in tqdm.tqdm(dataloader, file=sys.stdout, desc='Training: ', leave=False):
             x, y = x.to('cuda'), y.to('cuda')
-            emb = model(x)
+            emb = model(x, sigma)
             theta = head(emb, y)
             loss = cross_ent(theta, y)
+            if args.kl_div_factor > 0:
+                loss += args.kl_div_factor * model.loss()
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
+        if args.blend:
+            for x1, x2, y in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Blend): ', leave=False):
+                alpha = torch.rand(x1.shape[0])[:, None, None, None]
+                xm = x1 * alpha + x2 * (1 - alpha)
+
+                xm, y = xm.to('cuda'), y.to('cuda')
+                emb = model(xm, sigma)
+                theta = head(emb, y)
+                loss = cross_ent(theta, y)
+                if args.kl_div_factor > 0:
+                    loss += args.kl_div_factor * model.loss()
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+        if args.contrastive:
+            for x1, x2, _ in tqdm.tqdm(pair_dataloader, file=sys.stdout, desc='Training (Cont): ', leave=False):
+                x1, x2 = x1.to('cuda'), x2.to('cuda')
+                emb = (model(x1, sigma), model(x2, sigma))
+                inter_loss, intra_loss = contrastive_loss(*emb)
+                ct_loss = inter_loss
+                if args.cont_intra:
+                    ct_loss += intra_loss
+                ct_loss *= args.cont_factor
+
+                optimizer.zero_grad()
+                ct_loss.backward()
+                optimizer.step()
+
         print(f'Epoch {epoch}: Loss = {loss:.6f}')
+        if args.contrastive:
+            print(f'\t| Contrastive loss = {ct_loss:.2f}')
+
         if args.schedule_lr:
             scheduler.step()
 
         model.eval()
         auc, r1_acc = evaluate(model, val_dataset, val_dataloader)
+        if r1_acc > best_acc:
+            best_acc = r1_acc
+            torch.save(model.state_dict(), f'ckpt/{best_ckpt_name}')
+
         print(f"\t| AUC: {auc:.3f}")
         print(f"\t| rank-1 ACC: {r1_acc:.3f}")
 
-    pathlib.Path('ckpt').mkdir(exist_ok=True)
-    ckpt_name = f'model-{datetime.datetime.now().strftime("%m%d-%H%M%S")}.pth'
+    ckpt_name = f'model-{start_time}.pth'
     torch.save(model.state_dict(), f'ckpt/{ckpt_name}')
 
     print('\n', f'Settings: {args}')
     print(f'Save checkpoint to ckpt/{ckpt_name}.')
+    print(f'Save best checkpoint to ckpt/{best_ckpt_name}, best acc = {best_acc}.')

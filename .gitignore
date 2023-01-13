@@ -1,10 +1,12 @@
 data/calfw/aligned images/
 data/calfw/images&landmarks/
+raw images/
+oldimages/
 __pycache__/
 .vs/
 .idea/
 ckpt/
+ForTesting/
 
-BaselineScript/test.ipynb
-BaselineScript/train.ipynb
+BaselineScript/*.ipynb
 BaselineScript/test.py
