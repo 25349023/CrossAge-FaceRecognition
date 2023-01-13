@@ -121,7 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt')
     args = parser.parse_args()
 
-    model = FaceFeatureExtractor.insightFace("mobilefacenet", args.ckpt).model
+    model = FaceFeatureExtractor.insightFace("mobilefacenet", args.ckpt, sigma=0).model
     TestCALFWDataset(
         '../data/ForTesting', 'Test_PairList.csv',
         f'Test_team09_results_{args.ckpt.split(".")[0].split("-")[-1]}.csv', model,

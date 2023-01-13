@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('--ckpt', default='Model/model_mobilefacenet.pth')
     args = parser.parse_args()
 
-    facerecognition = FaceFeatureExtractor.insightFace("mobilefacenet", args.ckpt)
+    facerecognition = FaceFeatureExtractor.insightFace("mobilefacenet", args.ckpt, sigma=0)
     model = facerecognition.model.to('cuda')
 
     dataset = CALFWDataset('../data/calfw', 'ForTraining/CALFW_validationlist.csv',
